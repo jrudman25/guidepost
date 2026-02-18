@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { parseResume } from "@/lib/gemini";
+import { parseResume } from "@/lib/resume-parser";
 
 export async function POST(request: Request) {
     try {
