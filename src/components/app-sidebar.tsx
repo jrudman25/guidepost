@@ -58,7 +58,7 @@ export function AppSidebar() {
             {/* Footer */}
             <div className="border-t border-border px-6 py-4">
                 <p className="text-xs text-muted-foreground">
-                    Guidepost v0.2.1
+                    Guidepost v0.2.2
                 </p>
             </div>
         </aside>
