@@ -25,6 +25,7 @@ export interface SearchFilter {
     keywords: string[];
     location: string | null;
     remote_preference: "remote" | "hybrid" | "onsite" | "any";
+    target_seniority: "entry" | "mid" | "senior" | "any";
     min_salary: number | null;
     max_listing_age_days: number;
     excluded_companies: string[];

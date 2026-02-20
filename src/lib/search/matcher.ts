@@ -15,6 +15,7 @@ Candidate Profile:
 - Skills: {skills}  
 - Years of Experience: {experience}
 - Industries: {industries}
+- Target Seniority: {seniority}
 
 Job Listing:
 Title: {jobTitle}
@@ -23,9 +24,14 @@ Description: {description}
 
 Score this job from 0 to 100 based on:
 - Skills overlap (40% weight)
-- Role/title alignment (30% weight)
-- Experience level match (20% weight)
+- Role/title alignment (20% weight)
+- Seniority/experience level match (30% weight)
 - Industry relevance (10% weight)
+
+Seniority matching rules:
+- If the candidate targets "entry" level roles and the job requires senior-level experience (e.g., 5+ years, "lead", "architect", "principal", "staff"), reduce the score significantly (below 30).
+- If the candidate targets "senior" roles and the job is clearly entry/junior level, reduce the score.
+- If the target seniority is "any", treat experience level as a minor factor.
 
 Return ONLY a valid JSON object (no markdown, no code blocks):
 {
@@ -38,8 +44,15 @@ Return ONLY a valid JSON object (no markdown, no code blocks):
  */
 export async function scoreJobMatch(
     job: { title: string; company: string; description: string | null },
-    resume: ParsedResumeData
+    resume: ParsedResumeData,
+    targetSeniority: string = "any"
 ): Promise<MatchResult> {
+    const seniorityLabels: Record<string, string> = {
+        entry: "Entry Level / Junior",
+        mid: "Mid Level",
+        senior: "Senior",
+        any: "Any level",
+    };
     const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
     const prompt = MATCH_PROMPT
@@ -47,6 +60,7 @@ export async function scoreJobMatch(
         .replace("{skills}", resume.skills.join(", "))
         .replace("{experience}", String(resume.years_of_experience))
         .replace("{industries}", resume.industries.join(", "))
+        .replace("{seniority}", seniorityLabels[targetSeniority] || "Any level")
         .replace("{jobTitle}", job.title)
         .replace("{company}", job.company)
         .replace("{description}", (job.description || "No description available").substring(0, 2000));
@@ -76,12 +90,13 @@ export async function scoreJobMatch(
  */
 export async function scoreJobBatch(
     jobs: Array<{ title: string; company: string; description: string | null }>,
-    resume: ParsedResumeData
+    resume: ParsedResumeData,
+    targetSeniority: string = "any"
 ): Promise<MatchResult[]> {
     const results: MatchResult[] = [];
 
     for (const job of jobs) {
-        const result = await scoreJobMatch(job, resume);
+        const result = await scoreJobMatch(job, resume, targetSeniority);
         results.push(result);
         // Small delay to avoid rate limiting
         await new Promise((resolve) => setTimeout(resolve, 200));

@@ -54,7 +54,7 @@ export async function POST(request: Request) {
         const arrayBuffer = await file.arrayBuffer();
         const buffer = Buffer.from(arrayBuffer);
         // eslint-disable-next-line @typescript-eslint/no-require-imports
-        const pdfParse = require("pdf-parse") as (buffer: Buffer) => Promise<{ text: string }>;
+        const pdfParse = require("pdf-parse/lib/pdf-parse.js") as (buffer: Buffer) => Promise<{ text: string }>;
         const pdfData = await pdfParse(buffer);
         const resumeText = pdfData.text;
 
@@ -95,6 +95,7 @@ export async function POST(request: Request) {
                 resume_id: resume.id,
                 keywords: parsedData.skills.slice(0, 5),
                 remote_preference: "any",
+                target_seniority: "any",
                 max_listing_age_days: 7,
             });
 

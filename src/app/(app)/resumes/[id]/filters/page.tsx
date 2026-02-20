@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
@@ -31,6 +31,7 @@ export default function FiltersPage() {
         keywords: [],
         location: "",
         remote_preference: "any",
+        target_seniority: "any",
         min_salary: null,
         max_listing_age_days: 7,
         excluded_companies: [],
@@ -198,6 +199,32 @@ export default function FiltersPage() {
                     </Select>
                 </div>
 
+                {/* Target Seniority */}
+                <div className="space-y-2">
+                    <Label>Target Seniority</Label>
+                    <p className="text-xs text-muted-foreground">
+                        Filter searches by experience level
+                    </p>
+                    <Select
+                        value={filters.target_seniority || "any"}
+                        onValueChange={(v) =>
+                            setFilters((prev) => ({
+                                ...prev,
+                                target_seniority: v as SearchFilter["target_seniority"],
+                            }))
+                        }
+                    >
+                        <SelectTrigger>
+                            <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="any">Any Level</SelectItem>
+                            <SelectItem value="entry">Entry Level / Junior</SelectItem>
+                            <SelectItem value="mid">Mid Level</SelectItem>
+                            <SelectItem value="senior">Senior</SelectItem>
+                        </SelectContent>
+                    </Select>
+                </div>
                 {/* Min Salary */}
                 <div className="space-y-2">
                     <Label htmlFor="salary">Minimum Salary (USD/year)</Label>
@@ -280,3 +307,4 @@ export default function FiltersPage() {
         </div>
     );
 }
+

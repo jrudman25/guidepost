@@ -25,14 +25,27 @@ export function buildSearchQueries(
             queries.push(title);
         }
     }
+    // Append seniority level qualifier
+    const seniorityMap: Record<string, string> = {
+        entry: "entry level OR junior",
+        mid: "mid level",
+        senior: "senior",
+    };
+    const seniorityStr = filters.target_seniority && filters.target_seniority !== "any"
+        ? seniorityMap[filters.target_seniority]
+        : null;
+
+    let result = seniorityStr
+        ? queries.map((q) => `${q} ${seniorityStr}`)
+        : queries;
 
     // Append filter keywords to each query if present
     if (filters.keywords && filters.keywords.length > 0) {
         const keywordStr = filters.keywords.slice(0, 3).join(" ");
-        return queries.map((q) => `${q} ${keywordStr}`);
+        result = result.map((q) => `${q} ${keywordStr}`);
     }
 
-    return queries;
+    return result;
 }
 
 /**

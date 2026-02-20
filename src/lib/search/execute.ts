@@ -51,6 +51,7 @@ export async function executeJobSearch(resumeId?: string) {
             keywords: [],
             location: null,
             remote_preference: "any",
+            target_seniority: "any",
             min_salary: null,
             max_listing_age_days: 7,
             excluded_companies: [],
@@ -96,7 +97,8 @@ export async function executeJobSearch(resumeId?: string) {
                             company: normalized.company,
                             description: normalized.description,
                         },
-                        parsed
+                        parsed,
+                        searchFilters.target_seniority || "any"
                     );
 
                     // Filter by remote preference

@@ -1,6 +1,6 @@
-"use client";
+﻿"use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import Link from "next/link";
 import type { JobListing } from "@/lib/types";
 import { Badge } from "@/components/ui/badge";
@@ -17,6 +17,7 @@ import {
     Building2,
     Wifi,
     DollarSign,
+    Clock,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -130,6 +131,9 @@ export default function InboxPage() {
                 </Button>
             </div>
 
+            {/* Scan timing info */}
+            <ScanTimingInfo jobs={jobs} />
+
             {/* Tabs */}
             <Tabs value={activeTab} onValueChange={setActiveTab}>
                 <TabsList>
@@ -201,7 +205,7 @@ export default function InboxPage() {
                                             getScoreColor(job.match_score)
                                         )}
                                     >
-                                        {job.match_score ?? "—"}
+                                        {job.match_score ?? "â€”"}
                                     </Badge>
                                 </div>
                             </button>
@@ -225,7 +229,7 @@ export default function InboxPage() {
                                         getScoreColor(selectedJob.match_score)
                                     )}
                                 >
-                                    {selectedJob.match_score ?? "—"}%
+                                    {selectedJob.match_score ?? "â€”"}%
                                 </Badge>
                             </div>
 
@@ -320,3 +324,79 @@ export default function InboxPage() {
         </div>
     );
 }
+
+function getNextAutoScan(): Date {
+    // Cron runs daily at 8 AM Pacific (UTC-8 in PST, UTC-7 in PDT)
+    const now = new Date();
+    // Get current time in Pacific
+    const pacific = new Date(
+        now.toLocaleString("en-US", { timeZone: "America/Los_Angeles" })
+    );
+    const next = new Date(pacific);
+    next.setHours(8, 0, 0, 0);
+
+    // If 8 AM has already passed today, move to tomorrow
+    if (next <= pacific) {
+        next.setDate(next.getDate() + 1);
+    }
+
+    // Convert back to UTC by getting the offset
+    const utcNext = new Date(
+        now.getTime() + (next.getTime() - pacific.getTime())
+    );
+    return utcNext;
+}
+
+function formatRelativeTime(date: Date): string {
+    const now = new Date();
+    const diffMs = date.getTime() - now.getTime();
+    const absDiffMs = Math.abs(diffMs);
+
+    const minutes = Math.floor(absDiffMs / 60000);
+    const hours = Math.floor(minutes / 60);
+    const days = Math.floor(hours / 24);
+
+    const isPast = diffMs < 0;
+
+    if (days > 0) {
+        const label = days === 1 ? "1 day" : `${days} days`;
+        return isPast ? `${label} ago` : `in ${label}`;
+    }
+    if (hours > 0) {
+        const label = hours === 1 ? "1 hour" : `${hours} hours`;
+        return isPast ? `${label} ago` : `in ${label}`;
+    }
+    if (minutes > 0) {
+        const label = minutes === 1 ? "1 min" : `${minutes} min`;
+        return isPast ? `${label} ago` : `in ${label}`;
+    }
+    return "just now";
+}
+
+function ScanTimingInfo({ jobs }: { jobs: JobListing[] }) {
+    const lastScanTime = useMemo(() => {
+        if (jobs.length === 0) return null;
+        const dates = jobs
+            .map((j) => new Date(j.discovered_at))
+            .sort((a, b) => b.getTime() - a.getTime());
+        return dates[0];
+    }, [jobs]);
+
+    const nextAutoScan = useMemo(() => getNextAutoScan(), []);
+
+    return (
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+            <span className="flex items-center gap-1">
+                <Clock className="h-3 w-3" />
+                Last scan:{" "}
+                {lastScanTime
+                    ? formatRelativeTime(lastScanTime)
+                    : "No scans yet"}
+            </span>
+            <span>
+                Next auto-scan: {formatRelativeTime(nextAutoScan)} (8:00 AM PT)
+            </span>
+        </div>
+    );
+}
+
