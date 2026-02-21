@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { executeJobSearch } from "@/lib/search/execute";
+import { createServiceClient } from "@/lib/supabase/service";
 
 /**
  * GET /api/cron/daily-search
@@ -19,8 +20,11 @@ export async function GET(request: Request) {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
         }
 
+        // Use service role client (bypasses RLS since cron has no user session)
+        const supabase = createServiceClient();
+
         // Execute search directly (no HTTP round-trip needed)
-        const result = await executeJobSearch();
+        const result = await executeJobSearch(undefined, supabase);
 
         return NextResponse.json({
             success: true,

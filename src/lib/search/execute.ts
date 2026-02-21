@@ -4,13 +4,14 @@ import { buildSearchQueries } from "@/lib/search/query-builder";
 import { searchJobs, normalizeJob } from "@/lib/search/serpapi";
 import { scoreJobMatch } from "@/lib/search/matcher";
 import type { ParsedResumeData, SearchFilter } from "@/lib/types";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 /**
  * Core search logic extracted so it can be called from both
  * the API route and the cron endpoint.
  */
-export async function executeJobSearch(resumeId?: string) {
-    const supabase = await createClient();
+export async function executeJobSearch(resumeId?: string, externalClient?: SupabaseClient) {
+    const supabase = externalClient || await createClient();
 
     // Get resumes to search for
     let query = supabase
