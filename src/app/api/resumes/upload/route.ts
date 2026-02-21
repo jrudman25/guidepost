@@ -93,7 +93,7 @@ export async function POST(request: Request) {
             .from("search_filters")
             .insert({
                 resume_id: resume.id,
-                keywords: parsedData.skills.slice(0, 5),
+                keywords: [],
                 remote_preference: "any",
                 target_seniority: "any",
                 max_listing_age_days: 7,

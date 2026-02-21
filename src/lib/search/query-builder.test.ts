@@ -26,6 +26,7 @@ function makeFilters(overrides: Partial<SearchFilter> = {}): SearchFilter {
         keywords: [],
         location: null,
         remote_preference: "any",
+        target_seniority: "any",
         min_salary: null,
         max_listing_age_days: 7,
         excluded_companies: [],
@@ -54,38 +55,34 @@ describe("buildSearchQueries", () => {
         expect(result).toHaveLength(4);
     });
 
-    it("falls back to skills when no job titles exist", () => {
+    it("falls back to individual skill queries when no job titles exist", () => {
         const resume = makeResume({
             job_titles: [],
             skills: ["React", "Node", "SQL", "Docker"],
         });
         const result = buildSearchQueries(resume, makeFilters());
-        expect(result).toHaveLength(1);
-        expect(result[0]).toBe("React Node SQL");
+        expect(result).toEqual(["React jobs", "Node jobs", "SQL jobs"]);
     });
 
-    it("appends filter keywords to each query", () => {
+    it("does not append filter keywords to queries", () => {
         const resume = makeResume({ job_titles: ["Engineer"] });
         const filters = makeFilters({ keywords: ["remote", "startup"] });
         const result = buildSearchQueries(resume, filters);
-        expect(result).toEqual(["Engineer remote startup"]);
+        expect(result).toEqual(["Engineer"]);
     });
 
-    it("limits appended keywords to 3", () => {
-        const resume = makeResume({ job_titles: ["Engineer"] });
-        const filters = makeFilters({
-            keywords: ["a", "b", "c", "d", "e"],
-        });
-        const result = buildSearchQueries(resume, filters);
-        expect(result[0]).toBe("Engineer a b c");
-    });
-
-    it("returns empty-skills fallback when both titles and skills are empty", () => {
+    it("returns software developer fallback when both titles and skills are empty", () => {
         const resume = makeResume({ job_titles: [], skills: [] });
         const result = buildSearchQueries(resume, makeFilters());
-        // Should return a single query with empty string (join of empty array)
         expect(result).toHaveLength(1);
-        expect(result[0]).toBe("");
+        expect(result[0]).toBe("software developer");
+    });
+
+    it("appends seniority qualifier when set", () => {
+        const resume = makeResume({ job_titles: ["Engineer"] });
+        const filters = makeFilters({ target_seniority: "entry" });
+        const result = buildSearchQueries(resume, filters);
+        expect(result).toEqual(["Engineer entry level OR junior"]);
     });
 });
 

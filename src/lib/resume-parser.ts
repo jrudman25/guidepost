@@ -8,7 +8,7 @@ const RESUME_PARSE_PROMPT = `You are a resume parser. Analyze the following resu
 Return a JSON object with EXACTLY these fields:
 {
   "summary": "A 2-3 sentence professional summary of the candidate",
-  "job_titles": ["Array of job titles the person has held or is targeting"],
+  "job_titles": ["Array of realistic job titles the person should search for"],
   "skills": ["Array of technical and soft skills mentioned"],
   "years_of_experience": <number - total years of professional experience, estimate if not explicit>,
   "education": ["Array of degrees/certifications, e.g. 'B.S. Computer Science, MIT'"],
@@ -20,7 +20,7 @@ Rules:
 - Return ONLY valid JSON, no markdown formatting or code blocks
 - If a field cannot be determined, use an empty array [] or 0 for numbers
 - For skills, include both specific technologies AND general competencies
-- For job_titles, include both past roles and likely target roles
+- For job_titles, ONLY include titles that would realistically appear in a job posting on LinkedIn or Indeed. Include the person's most recent professional title and 2-3 related titles they'd likely search for. Do NOT include academic roles (e.g. "Teaching Assistant"), club positions (e.g. "Student Developer", "Club President"), or volunteer titles.
 - Be thorough but accurate — only include what's actually in the resume
 
 Resume text:

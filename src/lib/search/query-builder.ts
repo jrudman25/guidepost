@@ -2,8 +2,9 @@ import type { ParsedResumeData, SearchFilter } from "@/lib/types";
 
 /**
  * Builds optimized search queries from resume data and filters.
- * Strategy: combine top job titles with location/remote filters
- * to maximize coverage with minimal API calls.
+ * Strategy: keep queries simple — just job title + seniority level.
+ * Google Jobs returns better results with focused queries.
+ * Skill matching is handled post-search by the AI matcher.
  * 
  * Target: ~4 queries per resume to stay within SerpAPI free tier.
  */
@@ -17,14 +18,20 @@ export function buildSearchQueries(
     const titles = parsed.job_titles.slice(0, 4);
 
     if (titles.length === 0) {
-        // Fallback: use skills as search terms
-        const topSkills = parsed.skills.slice(0, 3).join(" ");
-        queries.push(topSkills);
+        // Fallback: use top skills as individual queries
+        const topSkills = parsed.skills.slice(0, 3);
+        for (const skill of topSkills) {
+            queries.push(`${skill} jobs`);
+        }
+        if (queries.length === 0) {
+            queries.push("software developer"); // ultimate fallback
+        }
     } else {
         for (const title of titles) {
             queries.push(title);
         }
     }
+
     // Append seniority level qualifier
     const seniorityMap: Record<string, string> = {
         entry: "entry level OR junior",
@@ -35,15 +42,9 @@ export function buildSearchQueries(
         ? seniorityMap[filters.target_seniority]
         : null;
 
-    let result = seniorityStr
+    const result = seniorityStr
         ? queries.map((q) => `${q} ${seniorityStr}`)
         : queries;
-
-    // Append filter keywords to each query if present
-    if (filters.keywords && filters.keywords.length > 0) {
-        const keywordStr = filters.keywords.slice(0, 3).join(" ");
-        result = result.map((q) => `${q} ${keywordStr}`);
-    }
 
     return result;
 }
