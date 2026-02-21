@@ -60,10 +60,12 @@ export async function executeJobSearch(resumeId?: string, externalClient?: Supab
 
         // Build and execute search queries
         const queries = buildSearchQueries(parsed, searchFilters);
+        console.log(`[search] Resume ${resume.id}: ${queries.length} queries`, queries);
 
         for (const queryStr of queries) {
             try {
                 const jobs = await searchJobs(queryStr, searchFilters);
+                console.log(`[search] Query "${queryStr}": ${jobs.length} results from SerpAPI`);
 
                 for (const job of jobs) {
                     // Skip excluded companies
@@ -73,6 +75,7 @@ export async function executeJobSearch(resumeId?: string, externalClient?: Supab
                                 job.company_name.toLowerCase().includes(exc.toLowerCase())
                         )
                     ) {
+                        console.log(`[search] Skipped: excluded company "${job.company_name}"`);
                         continue;
                     }
 
@@ -80,7 +83,10 @@ export async function executeJobSearch(resumeId?: string, externalClient?: Supab
                     const normalized = normalizeJob(job, resume.id);
 
                     // Skip if no URL (can't deduplicate) or if URL already exists
-                    if (!normalized.url) continue;
+                    if (!normalized.url) {
+                        console.log(`[search] Skipped: no URL for "${normalized.title}"`);
+                        continue;
+                    }
 
                     // Check for duplicate
                     const { data: existing } = await supabase
@@ -89,7 +95,10 @@ export async function executeJobSearch(resumeId?: string, externalClient?: Supab
                         .eq("url", normalized.url)
                         .maybeSingle();
 
-                    if (existing) continue;
+                    if (existing) {
+                        console.log(`[search] Skipped: duplicate URL for "${normalized.title}"`);
+                        continue;
+                    }
 
                     // Score the match
                     const matchResult = await scoreJobMatch(
