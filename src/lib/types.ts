@@ -47,6 +47,7 @@ export interface JobListing {
     status: "new" | "saved" | "dismissed" | "applied";
     salary_info: string | null;
     is_remote: boolean;
+    seen_at: string | null;
 }
 
 export interface Application {

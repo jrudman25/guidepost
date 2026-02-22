@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+﻿import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 
 export async function PATCH(
@@ -52,7 +52,14 @@ export async function DELETE(
 
         // Delete from storage
         if (resume?.file_path) {
-            await supabase.storage.from("resumes").remove([resume.file_path]);
+            console.log("Deleting storage file:", resume.file_path);
+            const { error: storageError } = await supabase.storage
+                .from("resumes")
+                .remove([resume.file_path]);
+            if (storageError) {
+                console.error("Storage delete error:", storageError);
+                // Continue — still delete the DB record even if storage fails
+            }
         }
 
         // Delete from database (cascades to search_filters)
@@ -77,3 +84,4 @@ export async function DELETE(
         );
     }
 }
+

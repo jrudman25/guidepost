@@ -18,6 +18,9 @@ import {
     Wifi,
     DollarSign,
     Clock,
+    CheckSquare,
+    Square,
+    Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -36,6 +39,28 @@ export default function InboxPage() {
     const [searching, setSearching] = useState(false);
     const [activeTab, setActiveTab] = useState("new");
     const [selectedJob, setSelectedJob] = useState<JobListing | null>(null);
+    const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+    const [bulkUpdating, setBulkUpdating] = useState(false);
+
+    async function markAsSeen(job: JobListing) {
+        if (job.seen_at) return; // already seen
+        const now = new Date().toISOString();
+        // Optimistically update local state
+        setJobs((prev) =>
+            prev.map((j) => (j.id === job.id ? { ...j, seen_at: now } : j))
+        );
+        // Fire and forget — non-critical update
+        fetch(`/api/jobs/${job.id}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ seen_at: now }),
+        }).catch(() => {});
+    }
+
+    function selectJob(job: JobListing) {
+        setSelectedJob(job);
+        markAsSeen(job);
+    }
 
     const fetchJobs = useCallback(async (status?: string) => {
         try {
@@ -91,13 +116,18 @@ export default function InboxPage() {
 
             if (!response.ok) throw new Error("Failed to update");
 
-            // Update local state
-            setJobs((prev) =>
-                prev.map((j) => (j.id === jobId ? { ...j, status } : j))
-            );
-
-            if (selectedJob?.id === jobId) {
-                setSelectedJob((prev) => (prev ? { ...prev, status } : null));
+            // Remove the job from the list if we're on a filtered tab
+            // (e.g., dismissing on "New" tab should remove it from view)
+            if (activeTab !== "all") {
+                setJobs((prev) => prev.filter((j) => j.id !== jobId));
+                if (selectedJob?.id === jobId) setSelectedJob(null);
+            } else {
+                setJobs((prev) =>
+                    prev.map((j) => (j.id === jobId ? { ...j, status } : j))
+                );
+                if (selectedJob?.id === jobId) {
+                    setSelectedJob((prev) => (prev ? { ...prev, status } : null));
+                }
             }
 
             const labels: Record<string, string> = {
@@ -108,6 +138,62 @@ export default function InboxPage() {
             toast.success(labels[status] || "Status updated");
         } catch {
             toast.error("Failed to update job status");
+        }
+    }
+
+    function toggleSelect(jobId: string) {
+        setSelectedIds((prev) => {
+            const next = new Set(prev);
+            if (next.has(jobId)) {
+                next.delete(jobId);
+            } else {
+                next.add(jobId);
+            }
+            return next;
+        });
+    }
+
+    function toggleSelectAll() {
+        if (selectedIds.size === jobs.length) {
+            setSelectedIds(new Set());
+        } else {
+            setSelectedIds(new Set(jobs.map((j) => j.id)));
+        }
+    }
+
+    async function bulkUpdateStatus(status: JobListing["status"]) {
+        if (selectedIds.size === 0) return;
+        setBulkUpdating(true);
+        try {
+            const response = await fetch("/api/jobs/bulk", {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ ids: [...selectedIds], status }),
+            });
+
+            if (!response.ok) throw new Error("Failed to update");
+
+            // Remove from list on filtered tabs, update on "all" tab
+            if (activeTab !== "all") {
+                setJobs((prev) => prev.filter((j) => !selectedIds.has(j.id)));
+            } else {
+                setJobs((prev) =>
+                    prev.map((j) =>
+                        selectedIds.has(j.id) ? { ...j, status } : j
+                    )
+                );
+            }
+
+            if (selectedJob && selectedIds.has(selectedJob.id)) {
+                setSelectedJob(null);
+            }
+
+            toast.success(`${selectedIds.size} job${selectedIds.size > 1 ? "s" : ""} ${status}`);
+            setSelectedIds(new Set());
+        } catch {
+            toast.error("Failed to update jobs");
+        } finally {
+            setBulkUpdating(false);
         }
     }
 
@@ -161,54 +247,117 @@ export default function InboxPage() {
                 <div className="flex gap-6">
                     {/* Job list */}
                     <div className="w-full space-y-3 lg:w-1/2">
-                        {jobs.map((job) => (
+                        {/* Bulk action bar */}
+                        <div className="flex items-center gap-2">
                             <button
+                                onClick={toggleSelectAll}
+                                className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                            >
+                                {selectedIds.size === jobs.length && jobs.length > 0 ? (
+                                    <CheckSquare className="h-4 w-4" />
+                                ) : (
+                                    <Square className="h-4 w-4" />
+                                )}
+                                {selectedIds.size > 0 ? `${selectedIds.size} selected` : "Select all"}
+                            </button>
+                            {selectedIds.size > 0 && (
+                                <>
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        disabled={bulkUpdating}
+                                        onClick={() => bulkUpdateStatus("dismissed")}
+                                        className="h-7 text-xs"
+                                    >
+                                        <Trash2 className="mr-1 h-3 w-3" />
+                                        Dismiss
+                                    </Button>
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        disabled={bulkUpdating}
+                                        onClick={() => bulkUpdateStatus("saved")}
+                                        className="h-7 text-xs"
+                                    >
+                                        <Bookmark className="mr-1 h-3 w-3" />
+                                        Save
+                                    </Button>
+                                </>
+                            )}
+                        </div>
+                        {jobs.map((job) => (
+                            <div
                                 key={job.id}
-                                onClick={() => setSelectedJob(job)}
                                 className={cn(
-                                    "w-full rounded-xl border border-border bg-card p-4 text-left transition-colors hover:border-primary/50",
+                                    "flex items-start gap-2 rounded-xl border border-border bg-card p-4 transition-colors hover:border-primary/50",
                                     selectedJob?.id === job.id && "border-primary ring-1 ring-primary"
                                 )}
                             >
-                                <div className="flex items-start justify-between gap-3">
-                                    <div className="min-w-0 flex-1">
-                                        <h3 className="truncate font-semibold">{job.title}</h3>
-                                        <div className="mt-1 flex items-center gap-2 text-sm text-muted-foreground">
-                                            <Building2 className="h-3.5 w-3.5 shrink-0" />
-                                            <span className="truncate">{job.company}</span>
-                                        </div>
-                                        <div className="mt-1 flex flex-wrap items-center gap-2">
-                                            {job.location && (
-                                                <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                                                    <MapPin className="h-3 w-3" />
-                                                    {job.location}
-                                                </span>
-                                            )}
-                                            {job.is_remote && (
-                                                <Badge variant="outline" className="text-xs">
-                                                    <Wifi className="mr-1 h-3 w-3" />
-                                                    Remote
-                                                </Badge>
-                                            )}
-                                            {job.salary_info && (
-                                                <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                                                    <DollarSign className="h-3 w-3" />
-                                                    {job.salary_info}
-                                                </span>
-                                            )}
-                                        </div>
-                                    </div>
-                                    <Badge
-                                        variant="outline"
-                                        className={cn(
-                                            "shrink-0 text-sm font-bold",
-                                            getScoreColor(job.match_score)
-                                        )}
-                                    >
-                                        {job.match_score ?? "â€”"}
-                                    </Badge>
+                                {/* Unseen blue dot */}
+                                <div className="mt-1.5 w-2.5 shrink-0 flex items-center justify-center">
+                                    {!job.seen_at && (
+                                        <span className="block h-2 w-2 rounded-full bg-blue-500" />
+                                    )}
                                 </div>
-                            </button>
+                                {/* Checkbox */}
+                                <button
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        toggleSelect(job.id);
+                                    }}
+                                    className="mt-0.5 shrink-0 text-muted-foreground hover:text-foreground transition-colors"
+                                >
+                                    {selectedIds.has(job.id) ? (
+                                        <CheckSquare className="h-4 w-4 text-primary" />
+                                    ) : (
+                                        <Square className="h-4 w-4" />
+                                    )}
+                                </button>
+                                {/* Job card content */}
+                                <button
+                                    onClick={() => selectJob(job)}
+                                    className="min-w-0 flex-1 text-left"
+                                >
+                                    <div className="flex items-start justify-between gap-3">
+                                        <div className="min-w-0 flex-1">
+                                            <h3 className="truncate font-semibold">{job.title}</h3>
+                                            <div className="mt-1 flex items-center gap-2 text-sm text-muted-foreground">
+                                                <Building2 className="h-3.5 w-3.5 shrink-0" />
+                                                <span className="truncate">{job.company}</span>
+                                            </div>
+                                            <div className="mt-1 flex flex-wrap items-center gap-2">
+                                                {job.location && (
+                                                    <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                                                        <MapPin className="h-3 w-3" />
+                                                        {job.location}
+                                                    </span>
+                                                )}
+                                                {job.is_remote && (
+                                                    <Badge variant="outline" className="text-xs">
+                                                        <Wifi className="mr-1 h-3 w-3" />
+                                                        Remote
+                                                    </Badge>
+                                                )}
+                                                {job.salary_info && (
+                                                    <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                                                        <DollarSign className="h-3 w-3" />
+                                                        {job.salary_info}
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </div>
+                                        <Badge
+                                            variant="outline"
+                                            className={cn(
+                                                "shrink-0 text-sm font-bold",
+                                                getScoreColor(job.match_score)
+                                            )}
+                                        >
+                                            {job.match_score ?? "—"}
+                                        </Badge>
+                                    </div>
+                                </button>
+                            </div>
                         ))}
                     </div>
 
@@ -399,4 +548,6 @@ function ScanTimingInfo({ jobs }: { jobs: JobListing[] }) {
         </div>
     );
 }
+
+
 

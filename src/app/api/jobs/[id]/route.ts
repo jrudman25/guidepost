@@ -1,9 +1,9 @@
-import { NextResponse } from "next/server";
+﻿import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 
 /**
  * PATCH /api/jobs/[id]
- * Update a job listing's status (save, dismiss, mark applied).
+ * Update a job listing's status and/or seen_at timestamp.
  */
 export async function PATCH(
     request: Request,
@@ -14,9 +14,21 @@ export async function PATCH(
         const supabase = await createClient();
         const body = await request.json();
 
+        // Build update object from provided fields
+        const updates: Record<string, unknown> = {};
+        if (body.status !== undefined) updates.status = body.status;
+        if (body.seen_at !== undefined) updates.seen_at = body.seen_at;
+
+        if (Object.keys(updates).length === 0) {
+            return NextResponse.json(
+                { error: "No fields to update" },
+                { status: 400 }
+            );
+        }
+
         const { data, error } = await supabase
             .from("job_listings")
-            .update({ status: body.status })
+            .update(updates)
             .eq("id", id)
             .select()
             .single();
@@ -34,3 +46,4 @@ export async function PATCH(
         );
     }
 }
+

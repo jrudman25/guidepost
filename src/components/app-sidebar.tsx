@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useState, useCallback } from "react";
 import {
     LayoutDashboard,
     FileText,
@@ -20,6 +21,25 @@ const navigation = [
 
 export function AppSidebar() {
     const pathname = usePathname();
+    const [unseenCount, setUnseenCount] = useState(0);
+
+    const fetchUnseenCount = useCallback(async () => {
+        try {
+            const res = await fetch("/api/jobs/unseen-count");
+            if (res.ok) {
+                const data = await res.json();
+                setUnseenCount(data.count ?? 0);
+            }
+        } catch {
+            // Silently fail — non-critical
+        }
+    }, []);
+
+    useEffect(() => {
+        fetchUnseenCount();
+        const interval = setInterval(fetchUnseenCount, 60_000);
+        return () => clearInterval(interval);
+    }, [fetchUnseenCount]);
 
     return (
         <aside className="fixed inset-y-0 left-0 z-50 flex w-64 flex-col border-r border-border bg-card">
@@ -50,6 +70,11 @@ export function AppSidebar() {
                         >
                             <item.icon className="h-4 w-4" />
                             {item.name}
+                            {item.name === "Job Inbox" && unseenCount > 0 && (
+                                <span className="ml-auto inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-blue-500 px-1.5 text-xs font-semibold text-white">
+                                    {unseenCount > 99 ? "99+" : unseenCount}
+                                </span>
+                            )}
                         </Link>
                     );
                 })}
@@ -58,7 +83,7 @@ export function AppSidebar() {
             {/* Footer */}
             <div className="border-t border-border px-6 py-4">
                 <p className="text-xs text-muted-foreground">
-                    Guidepost v0.3.2
+                    Guidepost v0.4.0
                 </p>
             </div>
         </aside>
