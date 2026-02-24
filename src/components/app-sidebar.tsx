@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState, useCallback } from "react";
 import {
     LayoutDashboard,
@@ -9,8 +9,10 @@ import {
     Inbox,
     ClipboardList,
     Compass,
+    LogOut,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { createClient } from "@/lib/supabase/client";
 
 const navigation = [
     { name: "Dashboard", href: "/", icon: LayoutDashboard },
@@ -21,6 +23,7 @@ const navigation = [
 
 export function AppSidebar() {
     const pathname = usePathname();
+    const router = useRouter();
     const [unseenCount, setUnseenCount] = useState(0);
 
     const fetchUnseenCount = useCallback(async () => {
@@ -31,7 +34,7 @@ export function AppSidebar() {
                 setUnseenCount(data.count ?? 0);
             }
         } catch {
-            // Silently fail — non-critical
+            // Silently fail - non-critical
         }
     }, []);
 
@@ -40,6 +43,12 @@ export function AppSidebar() {
         const interval = setInterval(fetchUnseenCount, 60_000);
         return () => clearInterval(interval);
     }, [fetchUnseenCount]);
+
+    async function handleLogout() {
+        const supabase = createClient();
+        await supabase.auth.signOut();
+        router.push("/login");
+    }
 
     return (
         <aside className="fixed inset-y-0 left-0 z-50 flex w-64 flex-col border-r border-border bg-card">
@@ -81,9 +90,16 @@ export function AppSidebar() {
             </nav>
 
             {/* Footer */}
-            <div className="border-t border-border px-6 py-4">
-                <p className="text-xs text-muted-foreground">
-                    Guidepost v0.4.0
+            <div className="border-t border-border px-3 py-3">
+                <button
+                    onClick={handleLogout}
+                    className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+                >
+                    <LogOut className="h-4 w-4" />
+                    Log Out
+                </button>
+                <p className="mt-2 px-3 text-xs text-muted-foreground">
+                    Guidepost v0.4.2
                 </p>
             </div>
         </aside>

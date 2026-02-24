@@ -61,6 +61,7 @@ export interface Application {
     status_updated_at: string;
     notes: string | null;
     url: string | null;
+    heard_back_at: string | null;
 }
 
 export type ApplicationStatus =

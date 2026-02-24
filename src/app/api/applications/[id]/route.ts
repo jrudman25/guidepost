@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+﻿import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 
 /**
@@ -21,6 +21,10 @@ export async function PATCH(
         if (body.notes !== undefined) updateData.notes = body.notes;
         if (body.applied_via !== undefined) updateData.applied_via = body.applied_via;
         if (body.url !== undefined) updateData.url = body.url;
+        if (body.job_title !== undefined) updateData.job_title = body.job_title;
+        if (body.company !== undefined) updateData.company = body.company;
+        if (body.applied_at !== undefined) updateData.applied_at = body.applied_at;
+        if (body.heard_back_at !== undefined) updateData.heard_back_at = body.heard_back_at;
 
         const { data, error } = await supabase
             .from("applications")
@@ -72,3 +76,5 @@ export async function DELETE(
         );
     }
 }
+
+

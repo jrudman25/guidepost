@@ -16,7 +16,16 @@ export async function PATCH(
 
         // Build update object from provided fields
         const updates: Record<string, unknown> = {};
-        if (body.status !== undefined) updates.status = body.status;
+        if (body.status !== undefined) {
+            const validStatuses = ["new", "saved", "dismissed", "applied"];
+            if (!validStatuses.includes(body.status)) {
+                return NextResponse.json(
+                    { error: `Invalid status. Must be one of: ${validStatuses.join(", ")}` },
+                    { status: 400 }
+                );
+            }
+            updates.status = body.status;
+        }
         if (body.seen_at !== undefined) updates.seen_at = body.seen_at;
 
         if (Object.keys(updates).length === 0) {

@@ -1,7 +1,8 @@
-"use client";
+﻿"use client";
 
 import { useState, useEffect, useCallback } from "react";
 import type { Application, ApplicationStatus } from "@/lib/types";
+import { parseLocalDate, daysSince } from "@/lib/date-utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -29,6 +30,8 @@ import {
     Calendar,
     Building2,
     Briefcase,
+    Pencil,
+    Reply,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -51,20 +54,14 @@ const STATUS_COLORS: Record<ApplicationStatus, string> = {
     ghosted: "bg-zinc-500/15 text-zinc-400 border-zinc-500/30",
 };
 
-function daysSince(dateStr: string): number {
-    const date = new Date(dateStr);
-    const now = new Date();
-    return Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24));
-}
-
 export default function ApplicationsPage() {
     const [applications, setApplications] = useState<Application[]>([]);
     const [loading, setLoading] = useState(true);
     const [dialogOpen, setDialogOpen] = useState(false);
     const [filterStatus, setFilterStatus] = useState<string>("all");
+    const [editingApp, setEditingApp] = useState<Application | null>(null);
 
-    // New application form state
-    const [form, setForm] = useState({
+    const emptyForm = {
         job_title: "",
         company: "",
         applied_at: new Date().toISOString().split("T")[0],
@@ -72,7 +69,11 @@ export default function ApplicationsPage() {
         status: "applied" as ApplicationStatus,
         notes: "",
         url: "",
-    });
+        heard_back_at: "",
+    };
+
+    // Form state (used for both add and edit)
+    const [form, setForm] = useState(emptyForm);
 
     const fetchApplications = useCallback(async () => {
         try {
@@ -97,30 +98,60 @@ export default function ApplicationsPage() {
     async function handleSubmit(e: React.FormEvent) {
         e.preventDefault();
 
+        const payload = {
+            ...form,
+            heard_back_at: form.heard_back_at || null,
+        };
+
         try {
-            const response = await fetch("/api/applications", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(form),
-            });
+            if (editingApp) {
+                // Edit mode — PATCH
+                const response = await fetch(`/api/applications/${editingApp.id}`, {
+                    method: "PATCH",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(payload),
+                });
+                if (!response.ok) throw new Error("Failed to update");
+                toast.success("Application updated!");
+            } else {
+                // Add mode — POST
+                const response = await fetch("/api/applications", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(payload),
+                });
+                if (!response.ok) throw new Error("Failed to create");
+                toast.success("Application added!");
+            }
 
-            if (!response.ok) throw new Error("Failed to create");
-
-            toast.success("Application added!");
             setDialogOpen(false);
-            setForm({
-                job_title: "",
-                company: "",
-                applied_at: new Date().toISOString().split("T")[0],
-                applied_via: "",
-                status: "applied",
-                notes: "",
-                url: "",
-            });
+            setEditingApp(null);
+            setForm(emptyForm);
             fetchApplications();
         } catch {
-            toast.error("Failed to add application");
+            toast.error(editingApp ? "Failed to update application" : "Failed to add application");
         }
+    }
+
+    function openEditDialog(app: Application) {
+        setEditingApp(app);
+        setForm({
+            job_title: app.job_title,
+            company: app.company,
+            applied_at: parseLocalDate(app.applied_at).toISOString().split("T")[0],
+            applied_via: app.applied_via || "",
+            status: app.status,
+            notes: app.notes || "",
+            url: app.url || "",
+            heard_back_at: app.heard_back_at ? parseLocalDate(app.heard_back_at).toISOString().split("T")[0] : "",
+        });
+        setDialogOpen(true);
+    }
+
+    function openAddDialog() {
+        setEditingApp(null);
+        setForm(emptyForm);
+        setDialogOpen(true);
     }
 
     async function updateStatus(id: string, status: ApplicationStatus) {
@@ -170,16 +201,24 @@ export default function ApplicationsPage() {
                     </p>
                 </div>
 
-                <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+                <Dialog open={dialogOpen} onOpenChange={(open) => {
+                    setDialogOpen(open);
+                    if (!open) {
+                        setEditingApp(null);
+                        setForm(emptyForm);
+                    }
+                }}>
                     <DialogTrigger asChild>
-                        <Button>
+                        <Button onClick={openAddDialog}>
                             <Plus className="mr-2 h-4 w-4" />
                             Add Application
                         </Button>
                     </DialogTrigger>
                     <DialogContent>
                         <DialogHeader>
-                            <DialogTitle>Add New Application</DialogTitle>
+                            <DialogTitle>
+                                {editingApp ? "Edit Application" : "Add New Application"}
+                            </DialogTitle>
                         </DialogHeader>
                         <form onSubmit={handleSubmit} className="space-y-4">
                             <div className="space-y-2">
@@ -230,6 +269,19 @@ export default function ApplicationsPage() {
                                     />
                                 </div>
                             </div>
+                            {form.status !== "applied" && (
+                                <div className="space-y-2">
+                                    <Label htmlFor="heard_back_at">Date Heard Back</Label>
+                                    <Input
+                                        id="heard_back_at"
+                                        type="date"
+                                        value={form.heard_back_at}
+                                        onChange={(e) =>
+                                            setForm((p) => ({ ...p, heard_back_at: e.target.value || "" }))
+                                        }
+                                    />
+                                </div>
+                            )}
                             <div className="space-y-2">
                                 <Label>Status</Label>
                                 <Select
@@ -274,7 +326,7 @@ export default function ApplicationsPage() {
                                 />
                             </div>
                             <Button type="submit" className="w-full">
-                                Add Application
+                                {editingApp ? "Save Changes" : "Add Application"}
                             </Button>
                         </form>
                     </DialogContent>
@@ -335,13 +387,19 @@ export default function ApplicationsPage() {
                                         </span>
                                         <span className="flex items-center gap-1">
                                             <Calendar className="h-3.5 w-3.5" />
-                                            {new Date(app.applied_at).toLocaleDateString()} (
+                                            {parseLocalDate(app.applied_at).toLocaleDateString()} (
                                             {daysSince(app.applied_at)} days ago)
                                         </span>
                                         {app.applied_via && (
                                             <span className="flex items-center gap-1">
                                                 <Briefcase className="h-3.5 w-3.5" />
                                                 {app.applied_via}
+                                            </span>
+                                        )}
+                                        {app.heard_back_at && (
+                                            <span className="flex items-center gap-1">
+                                                <Reply className="h-3.5 w-3.5" />
+                                                Heard back {parseLocalDate(app.heard_back_at).toLocaleDateString()}
                                             </span>
                                         )}
                                     </div>
@@ -371,6 +429,15 @@ export default function ApplicationsPage() {
                                         </SelectContent>
                                     </Select>
 
+                                    <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        onClick={() => openEditDialog(app)}
+                                        title="Edit application"
+                                    >
+                                        <Pencil className="h-4 w-4" />
+                                    </Button>
+
                                     {app.url && (
                                         <Button variant="ghost" size="icon" asChild>
                                             <a href={app.url} target="_blank" rel="noopener noreferrer">
@@ -396,3 +463,8 @@ export default function ApplicationsPage() {
         </div>
     );
 }
+
+
+
+
+

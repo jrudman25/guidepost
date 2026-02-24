@@ -20,6 +20,14 @@ export async function PATCH(request: Request) {
             );
         }
 
+        const validStatuses = ["new", "saved", "dismissed", "applied"];
+        if (!status || !validStatuses.includes(status)) {
+            return NextResponse.json(
+                { error: `Invalid status. Must be one of: ${validStatuses.join(", ")}` },
+                { status: 400 }
+            );
+        }
+
         const { error } = await supabase
             .from("job_listings")
             .update({ status })

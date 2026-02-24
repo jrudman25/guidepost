@@ -54,7 +54,7 @@ export default function InboxPage() {
             method: "PATCH",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ seen_at: now }),
-        }).catch(() => {});
+        }).catch(() => { });
     }
 
     function selectJob(job: JobListing) {
@@ -378,7 +378,7 @@ export default function InboxPage() {
                                         getScoreColor(selectedJob.match_score)
                                     )}
                                 >
-                                    {selectedJob.match_score ?? "â€”"}%
+                                    {selectedJob.match_score ?? "—"}%
                                 </Badge>
                             </div>
 

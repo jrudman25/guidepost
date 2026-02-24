@@ -56,6 +56,7 @@ export async function POST(request: Request) {
                 status: body.status || "applied",
                 notes: body.notes || null,
                 url: body.url || null,
+                heard_back_at: body.heard_back_at || null,
             })
             .select()
             .single();

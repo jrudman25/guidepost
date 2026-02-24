@@ -130,6 +130,7 @@ describe("searchJobs", () => {
                 min_salary: null,
                 max_listing_age_days: 7,
                 excluded_companies: [],
+                target_seniority: "any",
             })
         ).rejects.toThrow("SERPAPI_API_KEY is not configured");
     });
@@ -154,6 +155,7 @@ describe("searchJobs", () => {
             min_salary: null,
             max_listing_age_days: 7,
             excluded_companies: [],
+            target_seniority: "any",
         });
 
         expect(result).toEqual(mockJobs);
@@ -178,6 +180,7 @@ describe("searchJobs", () => {
             min_salary: null,
             max_listing_age_days: 7,
             excluded_companies: [],
+            target_seniority: "any",
         });
 
         expect(result).toEqual([]);
@@ -204,6 +207,7 @@ describe("searchJobs", () => {
                 min_salary: null,
                 max_listing_age_days: 7,
                 excluded_companies: [],
+                target_seniority: "any",
             })
         ).rejects.toThrow("SerpAPI request failed: 429");
     });
@@ -228,6 +232,7 @@ describe("searchJobs", () => {
                 min_salary: null,
                 max_listing_age_days: 7,
                 excluded_companies: [],
+                target_seniority: "any",
             })
         ).rejects.toThrow("SerpAPI error: Invalid key");
     });

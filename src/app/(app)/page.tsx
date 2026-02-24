@@ -1,6 +1,6 @@
-"use client";
+﻿"use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import Link from "next/link";
 import {
     Loader2,
@@ -55,6 +55,17 @@ const STATUS_LABELS: Record<string, string> = {
     ghosted: "Ghosted",
 };
 
+// Dark-mode friendly colors for Recharts (SVG doesn't resolve CSS vars)
+const CHART_COLORS = {
+    text: "#a1a1aa",       // zinc-400
+    grid: "#27272a",       // zinc-800
+    bar: "#6366f1",        // indigo-500 (primary)
+    tooltipBg: "#18181b",  // zinc-900
+    tooltipBorder: "#3f3f46", // zinc-700
+    tooltipText: "#fafafa",   // zinc-50
+    cursorFill: "rgba(161, 161, 170, 0.1)",
+};
+
 export default function DashboardPage() {
     const [stats, setStats] = useState<Stats | null>(null);
     const [loading, setLoading] = useState(true);
@@ -80,6 +91,22 @@ export default function DashboardPage() {
         }
         fetchStats();
     }, []);
+
+    const [unseenCount, setUnseenCount] = useState(0);
+
+    const fetchUnseenCount = useCallback(async () => {
+        try {
+            const res = await fetch("/api/jobs/unseen-count");
+            if (res.ok) {
+                const data = await res.json();
+                setUnseenCount(data.count ?? 0);
+            }
+        } catch {}
+    }, []);
+
+    useEffect(() => {
+        fetchUnseenCount();
+    }, [fetchUnseenCount]);
 
     if (loading) {
         return (
@@ -133,7 +160,7 @@ export default function DashboardPage() {
                 <MetricCard
                     icon={Clock}
                     label="Avg. Days to Hear Back"
-                    value={stats.avgDaysToHearBack || "—"}
+                    value={stats.avgDaysToHearBack || "\u2014"}
                     subtext="from application date"
                 />
                 <MetricCard
@@ -145,7 +172,7 @@ export default function DashboardPage() {
                             href="/resumes"
                             className="text-primary hover:underline"
                         >
-                            Manage resumes →
+                            Manage resumes {"\u2192"}
                         </Link>
                     }
                 />
@@ -158,12 +185,17 @@ export default function DashboardPage() {
                     className="flex items-center gap-4 rounded-xl border border-border bg-card p-5 transition-colors hover:border-primary/50"
                 >
                     <Inbox className="h-8 w-8 text-primary" />
-                    <div>
+                    <div className="flex-1">
                         <p className="font-semibold">Job Inbox</p>
                         <p className="text-sm text-muted-foreground">
                             {stats.newJobsThisWeek} new listings this week
                         </p>
                     </div>
+                    {unseenCount > 0 && (
+                        <span className="inline-flex h-6 min-w-6 items-center justify-center rounded-full bg-blue-500 px-2 text-xs font-semibold text-white">
+                            {unseenCount > 99 ? "99+" : unseenCount} unseen
+                        </span>
+                    )}
                 </Link>
                 <Link
                     href="/applications"
@@ -187,24 +219,29 @@ export default function DashboardPage() {
                     {stats.weeklyApplications.some((w) => w.count > 0) ? (
                         <ResponsiveContainer width="100%" height={250}>
                             <BarChart data={stats.weeklyApplications}>
-                                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                                <CartesianGrid strokeDasharray="3 3" stroke={CHART_COLORS.grid} />
                                 <XAxis
                                     dataKey="week"
-                                    tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }}
+                                    tick={{ fill: CHART_COLORS.text, fontSize: 12 }}
+                                    stroke={CHART_COLORS.grid}
                                 />
                                 <YAxis
-                                    tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }}
+                                    tick={{ fill: CHART_COLORS.text, fontSize: 12 }}
+                                    stroke={CHART_COLORS.grid}
                                     allowDecimals={false}
                                 />
                                 <Tooltip
                                     contentStyle={{
-                                        backgroundColor: "hsl(var(--card))",
-                                        border: "1px solid hsl(var(--border))",
+                                        backgroundColor: CHART_COLORS.tooltipBg,
+                                        border: `1px solid ${CHART_COLORS.tooltipBorder}`,
                                         borderRadius: "8px",
-                                        color: "hsl(var(--foreground))",
+                                        color: CHART_COLORS.tooltipText,
                                     }}
+                                    labelStyle={{ color: CHART_COLORS.tooltipText }}
+                                    itemStyle={{ color: CHART_COLORS.tooltipText }}
+                                    cursor={{ fill: CHART_COLORS.cursorFill }}
                                 />
-                                <Bar dataKey="count" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+                                <Bar dataKey="count" fill={CHART_COLORS.bar} radius={[4, 4, 0, 0]} />
                             </BarChart>
                         </ResponsiveContainer>
                     ) : (
@@ -236,11 +273,13 @@ export default function DashboardPage() {
                                     </Pie>
                                     <Tooltip
                                         contentStyle={{
-                                            backgroundColor: "hsl(var(--card))",
-                                            border: "1px solid hsl(var(--border))",
+                                            backgroundColor: CHART_COLORS.tooltipBg,
+                                            border: `1px solid ${CHART_COLORS.tooltipBorder}`,
                                             borderRadius: "8px",
-                                            color: "hsl(var(--foreground))",
+                                            color: CHART_COLORS.tooltipText,
                                         }}
+                                        labelStyle={{ color: CHART_COLORS.tooltipText }}
+                                        itemStyle={{ color: CHART_COLORS.tooltipText }}
                                     />
                                 </PieChart>
                             </ResponsiveContainer>
