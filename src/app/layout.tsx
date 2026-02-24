@@ -14,12 +14,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Guidepost — Job Search Manager",
+  title: "Guidepost \u2014 Job Search Manager",
   description:
     "Automatically find job listings that match your resume, track applications, and gain insights into your job search.",
-  icons: {
-    icon: "/favicon2.ico",
-  },
 };
 
 export default function RootLayout({

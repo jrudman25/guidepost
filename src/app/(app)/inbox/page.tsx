@@ -353,7 +353,7 @@ export default function InboxPage() {
                                                 getScoreColor(job.match_score)
                                             )}
                                         >
-                                            {job.match_score ?? "—"}
+                                            {job.match_score ?? "\u2014"}
                                         </Badge>
                                     </div>
                                 </button>
@@ -378,7 +378,7 @@ export default function InboxPage() {
                                         getScoreColor(selectedJob.match_score)
                                     )}
                                 >
-                                    {selectedJob.match_score ?? "—"}%
+                                    {selectedJob.match_score ?? "\u2014"}%
                                 </Badge>
                             </div>
 

@@ -79,7 +79,7 @@ export async function scoreJobMatch(
         console.error("Match scoring error:", error);
         return {
             score: 50,
-            reasoning: "Could not generate match score — defaulted to 50.",
+            reasoning: "Could not generate match score \u2014 defaulted to 50.",
         };
     }
 }

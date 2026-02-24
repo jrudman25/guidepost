@@ -46,8 +46,8 @@ export function ResumeCard({ resume, onUpdate }: ResumeCardProps) {
 
             toast.success(
                 resume.is_active
-                    ? "Resume paused — will not be included in daily scans"
-                    : "Resume activated — will be included in daily scans"
+                    ? "Resume paused \u2014 will not be included in daily scans"
+                    : "Resume activated \u2014 will be included in daily scans"
             );
             onUpdate();
         } catch {
