@@ -93,20 +93,22 @@ export default function DashboardPage() {
     }, []);
 
     const [unseenCount, setUnseenCount] = useState(0);
+    const [inboxTotal, setInboxTotal] = useState(0);
 
-    const fetchUnseenCount = useCallback(async () => {
+    const fetchCounts = useCallback(async () => {
         try {
             const res = await fetch("/api/jobs/unseen-count");
             if (res.ok) {
                 const data = await res.json();
                 setUnseenCount(data.count ?? 0);
+                setInboxTotal(data.totalNew ?? 0);
             }
-        } catch {}
+        } catch { }
     }, []);
 
     useEffect(() => {
-        fetchUnseenCount();
-    }, [fetchUnseenCount]);
+        fetchCounts();
+    }, [fetchCounts]);
 
     if (loading) {
         return (
@@ -188,7 +190,7 @@ export default function DashboardPage() {
                     <div className="flex-1">
                         <p className="font-semibold">Job Inbox</p>
                         <p className="text-sm text-muted-foreground">
-                            {stats.newJobsThisWeek} new listings this week
+                            {inboxTotal} jobs to review • {stats.newJobsThisWeek} new this week
                         </p>
                     </div>
                     {unseenCount > 0 && (

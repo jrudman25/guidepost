@@ -23,11 +23,18 @@ export interface SerpApiJob {
 interface SerpApiResponse {
     jobs_results?: SerpApiJob[];
     error?: string;
+    serpapi_pagination?: {
+        next_page_token?: string;
+        next?: string;
+    };
 }
 
 /**
  * Search for jobs using SerpAPI's Google Jobs engine.
+ * Fetches up to MAX_PAGES pages (10 results each) to get more results.
  */
+const MAX_PAGES = 3;
+
 export async function searchJobs(
     query: string,
     filters: SearchFilter
@@ -37,28 +44,44 @@ export async function searchJobs(
         throw new Error("SERPAPI_API_KEY is not configured");
     }
 
-    const params = buildSerpApiParams(query, filters);
-    params.api_key = apiKey;
+    const allJobs: SerpApiJob[] = [];
+    let nextPageToken: string | undefined;
 
-    const url = new URL("https://serpapi.com/search.json");
-    Object.entries(params).forEach(([key, value]) => {
-        url.searchParams.set(key, value);
-    });
+    for (let page = 0; page < MAX_PAGES; page++) {
+        const params = buildSerpApiParams(query, filters);
+        params.api_key = apiKey;
 
-    const response = await fetch(url.toString());
+        if (nextPageToken) {
+            params.next_page_token = nextPageToken;
+        }
 
-    if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`SerpAPI request failed: ${response.status} - ${errorText}`);
+        const url = new URL("https://serpapi.com/search.json");
+        Object.entries(params).forEach(([key, value]) => {
+            url.searchParams.set(key, value);
+        });
+
+        const response = await fetch(url.toString());
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`SerpAPI request failed: ${response.status} - ${errorText}`);
+        }
+
+        const data: SerpApiResponse = await response.json();
+
+        if (data.error) {
+            throw new Error(`SerpAPI error: ${data.error}`);
+        }
+
+        const jobs = data.jobs_results || [];
+        allJobs.push(...jobs);
+
+        // Stop if no more pages
+        nextPageToken = data.serpapi_pagination?.next_page_token;
+        if (!nextPageToken || jobs.length === 0) break;
     }
 
-    const data: SerpApiResponse = await response.json();
-
-    if (data.error) {
-        throw new Error(`SerpAPI error: ${data.error}`);
-    }
-
-    return data.jobs_results || [];
+    return allJobs;
 }
 
 /**

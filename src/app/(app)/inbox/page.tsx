@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { PaginationControls } from "@/components/pagination-controls";
 
 function getScoreColor(score: number | null): string {
     if (!score) return "bg-muted text-muted-foreground";
@@ -35,6 +36,8 @@ function getScoreColor(score: number | null): string {
 
 export default function InboxPage() {
     const [jobs, setJobs] = useState<JobListing[]>([]);
+    const [totalJobs, setTotalJobs] = useState(0);
+    const [page, setPage] = useState(1);
     const [loading, setLoading] = useState(true);
     const [searching, setSearching] = useState(false);
     const [activeTab, setActiveTab] = useState("new");
@@ -49,6 +52,8 @@ export default function InboxPage() {
         setJobs((prev) =>
             prev.map((j) => (j.id === job.id ? { ...j, seen_at: now } : j))
         );
+        // Immediately update sidebar badge
+        window.dispatchEvent(new CustomEvent("unseenCountChanged", { detail: -1 }));
         // Fire and forget — non-critical update
         fetch(`/api/jobs/${job.id}`, {
             method: "PATCH",
@@ -62,12 +67,18 @@ export default function InboxPage() {
         markAsSeen(job);
     }
 
-    const fetchJobs = useCallback(async (status?: string) => {
+    const fetchJobs = useCallback(async (status?: string, currentPage = 1) => {
+        setLoading(true);
         try {
-            const url = status ? `/api/jobs?status=${status}` : "/api/jobs";
+            const limit = 20;
+            const offset = (currentPage - 1) * limit;
+            const url = status
+                ? `/api/jobs?status=${status}&limit=${limit}&offset=${offset}`
+                : `/api/jobs?limit=${limit}&offset=${offset}`;
             const response = await fetch(url);
             const data = await response.json();
             setJobs(data.jobs || []);
+            setTotalJobs(data.total || 0);
         } catch (error) {
             console.error("Failed to fetch jobs:", error);
         } finally {
@@ -76,8 +87,8 @@ export default function InboxPage() {
     }, []);
 
     useEffect(() => {
-        fetchJobs(activeTab === "all" ? undefined : activeTab);
-    }, [activeTab, fetchJobs]);
+        fetchJobs(activeTab === "all" ? undefined : activeTab, page);
+    }, [activeTab, fetchJobs, page]);
 
     async function triggerSearch() {
         setSearching(true);
@@ -93,7 +104,8 @@ export default function InboxPage() {
             if (!response.ok) throw new Error(data.error);
 
             toast.success(`Found ${data.new_jobs_found} new job listings!`);
-            fetchJobs(activeTab === "all" ? undefined : activeTab);
+            setPage(1);
+            fetchJobs(activeTab === "all" ? undefined : activeTab, 1);
         } catch (error) {
             toast.error(
                 error instanceof Error ? error.message : "Search failed"
@@ -108,6 +120,10 @@ export default function InboxPage() {
         status: JobListing["status"]
     ) {
         try {
+            // Check if this unseen job is leaving "new" status
+            const job = jobs.find((j) => j.id === jobId);
+            const wasUnseen = job && !job.seen_at && job.status === "new";
+
             const response = await fetch(`/api/jobs/${jobId}`, {
                 method: "PATCH",
                 headers: { "Content-Type": "application/json" },
@@ -116,10 +132,19 @@ export default function InboxPage() {
 
             if (!response.ok) throw new Error("Failed to update");
 
+            // Update sidebar count if an unseen "new" job was dismissed/saved
+            if (wasUnseen) {
+                window.dispatchEvent(new CustomEvent("unseenCountChanged", { detail: -1 }));
+            }
+            if (job?.status === "new" && status !== "new") {
+                window.dispatchEvent(new CustomEvent("inboxTotalChanged", { detail: -1 }));
+            }
+
             // Remove the job from the list if we're on a filtered tab
             // (e.g., dismissing on "New" tab should remove it from view)
             if (activeTab !== "all") {
                 setJobs((prev) => prev.filter((j) => j.id !== jobId));
+                setTotalJobs((prev) => Math.max(0, prev - 1));
                 if (selectedJob?.id === jobId) setSelectedJob(null);
             } else {
                 setJobs((prev) =>
@@ -173,9 +198,25 @@ export default function InboxPage() {
 
             if (!response.ok) throw new Error("Failed to update");
 
+            // Count unseen "new" jobs in the selection for sidebar update
+            const unseenCount = jobs.filter(
+                (j) => selectedIds.has(j.id) && !j.seen_at && j.status === "new"
+            ).length;
+            if (unseenCount > 0) {
+                window.dispatchEvent(new CustomEvent("unseenCountChanged", { detail: -unseenCount }));
+            }
+
+            const newToOtherCount = jobs.filter(
+                (j) => selectedIds.has(j.id) && j.status === "new"
+            ).length;
+            if (newToOtherCount > 0 && status !== "new") {
+                window.dispatchEvent(new CustomEvent("inboxTotalChanged", { detail: -newToOtherCount }));
+            }
+
             // Remove from list on filtered tabs, update on "all" tab
             if (activeTab !== "all") {
                 setJobs((prev) => prev.filter((j) => !selectedIds.has(j.id)));
+                setTotalJobs((prev) => Math.max(0, prev - selectedIds.size));
             } else {
                 setJobs((prev) =>
                     prev.map((j) =>
@@ -202,7 +243,12 @@ export default function InboxPage() {
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-3xl font-bold tracking-tight">Job Inbox</h1>
+                    <h1 className="text-3xl font-bold tracking-tight flex items-center gap-3">
+                        Job Inbox
+                        <Badge variant="secondary" className="font-medium bg-muted text-muted-foreground">
+                            {totalJobs} {activeTab === "all" ? "total" : activeTab === "new" ? "in inbox" : activeTab}
+                        </Badge>
+                    </h1>
                     <p className="mt-1 text-muted-foreground">
                         Job listings matched to your resumes, scored by relevance.
                     </p>
@@ -221,7 +267,7 @@ export default function InboxPage() {
             <ScanTimingInfo jobs={jobs} />
 
             {/* Tabs */}
-            <Tabs value={activeTab} onValueChange={setActiveTab}>
+            <Tabs value={activeTab} onValueChange={(val) => { setActiveTab(val); setPage(1); }}>
                 <TabsList>
                     <TabsTrigger value="new">New</TabsTrigger>
                     <TabsTrigger value="saved">Saved</TabsTrigger>
@@ -359,6 +405,11 @@ export default function InboxPage() {
                                 </button>
                             </div>
                         ))}
+                        <PaginationControls
+                            currentPage={page}
+                            totalPages={Math.ceil(totalJobs / 20)}
+                            onPageChange={setPage}
+                        />
                     </div>
 
                     {/* Job detail panel */}

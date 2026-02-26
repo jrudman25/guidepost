@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import type { Application, ApplicationStatus } from "@/lib/types";
-import { parseLocalDate, daysSince } from "@/lib/date-utils";
+import { parseLocalDate, daysSince, toLocalDateString } from "@/lib/date-utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -35,6 +35,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { PaginationControls } from "@/components/pagination-controls";
 
 const STATUS_OPTIONS: { value: ApplicationStatus; label: string }[] = [
     { value: "applied", label: "Applied" },
@@ -56,6 +57,8 @@ const STATUS_COLORS: Record<ApplicationStatus, string> = {
 
 export default function ApplicationsPage() {
     const [applications, setApplications] = useState<Application[]>([]);
+    const [page, setPage] = useState(1);
+    const [totalApplications, setTotalApplications] = useState(0);
     const [loading, setLoading] = useState(true);
     const [dialogOpen, setDialogOpen] = useState(false);
     const [filterStatus, setFilterStatus] = useState<string>("all");
@@ -76,20 +79,24 @@ export default function ApplicationsPage() {
     const [form, setForm] = useState(emptyForm);
 
     const fetchApplications = useCallback(async () => {
+        setLoading(true);
         try {
+            const limit = 20;
+            const offset = (page - 1) * limit;
             const url =
                 filterStatus === "all"
-                    ? "/api/applications"
-                    : `/api/applications?status=${filterStatus}`;
+                    ? `/api/applications?limit=${limit}&offset=${offset}`
+                    : `/api/applications?status=${filterStatus}&limit=${limit}&offset=${offset}`;
             const response = await fetch(url);
             const data = await response.json();
             setApplications(data.applications || []);
+            setTotalApplications(data.total || 0);
         } catch (error) {
             console.error("Failed to fetch applications:", error);
         } finally {
             setLoading(false);
         }
-    }, [filterStatus]);
+    }, [filterStatus, page]);
 
     useEffect(() => {
         fetchApplications();
@@ -138,12 +145,12 @@ export default function ApplicationsPage() {
         setForm({
             job_title: app.job_title,
             company: app.company,
-            applied_at: parseLocalDate(app.applied_at).toISOString().split("T")[0],
+            applied_at: toLocalDateString(app.applied_at),
             applied_via: app.applied_via || "",
             status: app.status,
             notes: app.notes || "",
             url: app.url || "",
-            heard_back_at: app.heard_back_at ? parseLocalDate(app.heard_back_at).toISOString().split("T")[0] : "",
+            heard_back_at: app.heard_back_at ? toLocalDateString(app.heard_back_at) : "",
         });
         setDialogOpen(true);
     }
@@ -340,7 +347,7 @@ export default function ApplicationsPage() {
                         key={status}
                         variant={filterStatus === status ? "default" : "outline"}
                         size="sm"
-                        onClick={() => setFilterStatus(status)}
+                        onClick={() => { setFilterStatus(status); setPage(1); }}
                     >
                         {status === "all"
                             ? "All"
@@ -399,7 +406,7 @@ export default function ApplicationsPage() {
                                         {app.heard_back_at && (
                                             <span className="flex items-center gap-1">
                                                 <Reply className="h-3.5 w-3.5" />
-                                                Heard back {parseLocalDate(app.heard_back_at).toLocaleDateString()}
+                                                Heard back {parseLocalDate(toLocalDateString(app.heard_back_at)).toLocaleDateString()}
                                             </span>
                                         )}
                                     </div>
@@ -458,6 +465,11 @@ export default function ApplicationsPage() {
                             </div>
                         </div>
                     ))}
+                    <PaginationControls
+                        currentPage={page}
+                        totalPages={Math.ceil(totalApplications / 20)}
+                        onPageChange={setPage}
+                    />
                 </div>
             )}
         </div>

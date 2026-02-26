@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { parseLocalDate, daysSince } from "./date-utils";
+import { parseLocalDate, daysSince, toLocalDateString } from "./date-utils";
 
 // ---------------------------------------------------------------------------
 // parseLocalDate
@@ -82,5 +82,35 @@ describe("daysSince", () => {
         vi.setSystemTime(new Date(2026, 1, 5, 12, 0, 0)); // Feb 5, 2026 noon
 
         expect(daysSince("2026-01-06")).toBe(30);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// toLocalDateString
+// ---------------------------------------------------------------------------
+
+describe("toLocalDateString", () => {
+    it("returns YYYY-MM-DD for a date-only string", () => {
+        expect(toLocalDateString("2026-01-15")).toBe("2026-01-15");
+    });
+
+    it("returns YYYY-MM-DD for a datetime string with T00:00:00", () => {
+        expect(toLocalDateString("2026-03-22T00:00:00")).toBe("2026-03-22");
+    });
+
+    it("extracts the date portion from a UTC timestamptz string", () => {
+        // Supabase timestamptz columns return UTC strings like this.
+        // toLocalDateString extracts just the YYYY-MM-DD prefix,
+        // avoiding any timezone conversion that would shift the date.
+        expect(toLocalDateString("2026-01-15T00:00:00.000Z")).toBe("2026-01-15");
+    });
+
+    it("zero-pads single-digit months and days", () => {
+        expect(toLocalDateString("2026-03-05")).toBe("2026-03-05");
+        expect(toLocalDateString("2026-01-01")).toBe("2026-01-01");
+    });
+
+    it("handles end-of-year dates", () => {
+        expect(toLocalDateString("2026-12-31")).toBe("2026-12-31");
     });
 });

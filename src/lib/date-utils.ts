@@ -28,3 +28,16 @@ export function daysSince(dateStr: string): number {
         (now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24)
     );
 }
+
+/**
+ * Extract a `YYYY-MM-DD` string from any date/datetime string.
+ *
+ * For date-only strings ("2026-01-06"), returns them as-is.
+ * For timestamptz strings ("2026-01-06T00:00:00+00:00"), extracts
+ * just the date portion — avoiding timezone conversion that would
+ * shift the date backwards in western timezones.
+ */
+export function toLocalDateString(dateStr: string): string {
+    // Date-only strings and ISO timestamps both start with YYYY-MM-DD
+    return dateStr.substring(0, 10);
+}

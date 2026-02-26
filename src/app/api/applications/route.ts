@@ -10,11 +10,14 @@ export async function GET(request: Request) {
         const supabase = await createClient();
         const { searchParams } = new URL(request.url);
         const status = searchParams.get("status");
+        const limit = parseInt(searchParams.get("limit") || "20");
+        const offset = parseInt(searchParams.get("offset") || "0");
 
         let query = supabase
             .from("applications")
             .select("*", { count: "exact" })
-            .order("applied_at", { ascending: false });
+            .order("applied_at", { ascending: false })
+            .range(offset, offset + limit - 1);
 
         if (status) {
             query = query.eq("status", status);

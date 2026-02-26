@@ -9,7 +9,7 @@ export async function GET() {
     try {
         const supabase = await createClient();
 
-        const { count, error } = await supabase
+        const { count: unseenCount, error } = await supabase
             .from("job_listings")
             .select("*", { count: "exact", head: true })
             .is("seen_at", null)
@@ -19,7 +19,12 @@ export async function GET() {
             return NextResponse.json({ error: error.message }, { status: 500 });
         }
 
-        return NextResponse.json({ count: count ?? 0 });
+        const { count: totalNewCount } = await supabase
+            .from("job_listings")
+            .select("*", { count: "exact", head: true })
+            .eq("status", "new");
+
+        return NextResponse.json({ count: unseenCount ?? 0, totalNew: totalNewCount ?? 0 });
     } catch (error) {
         console.error("Unseen count error:", error);
         return NextResponse.json(
