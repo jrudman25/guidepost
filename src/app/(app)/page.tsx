@@ -11,6 +11,7 @@ import {
     Inbox,
     BarChart3,
 } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
     BarChart,
     Bar,
@@ -112,8 +113,48 @@ export default function DashboardPage() {
 
     if (loading) {
         return (
-            <div className="flex items-center justify-center py-24">
-                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            <div className="space-y-8 animate-in fade-in duration-500">
+                <div>
+                    <Skeleton className="h-9 w-64" />
+                    <Skeleton className="mt-2 h-5 w-48" />
+                </div>
+
+                {/* Key metrics skeleton */}
+                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+                    {[1, 2, 3, 4].map((i) => (
+                        <div key={i} className="rounded-xl border border-border bg-card p-6">
+                            <div className="flex items-center gap-2 mb-2">
+                                <Skeleton className="h-4 w-4 rounded-full" />
+                                <Skeleton className="h-4 w-24" />
+                            </div>
+                            <Skeleton className="mt-4 h-8 w-16" />
+                            <Skeleton className="mt-2 h-3 w-32" />
+                        </div>
+                    ))}
+                </div>
+
+                {/* Quick links skeleton */}
+                <div className="grid gap-4 md:grid-cols-2">
+                    {[1, 2].map((i) => (
+                        <div key={i} className="flex items-center gap-4 rounded-xl border border-border bg-card p-5">
+                            <Skeleton className="h-8 w-8 rounded-full" />
+                            <div className="flex-1 space-y-2">
+                                <Skeleton className="h-5 w-24" />
+                                <Skeleton className="h-4 w-40" />
+                            </div>
+                        </div>
+                    ))}
+                </div>
+
+                {/* Charts row skeleton */}
+                <div className="grid gap-6 lg:grid-cols-2">
+                    {[1, 2].map((i) => (
+                        <div key={i} className="rounded-xl border border-border bg-card p-6 h-[330px]">
+                            <Skeleton className="h-6 w-48 mb-6" />
+                            <Skeleton className="h-full w-full rounded-md" />
+                        </div>
+                    ))}
+                </div>
             </div>
         );
     }

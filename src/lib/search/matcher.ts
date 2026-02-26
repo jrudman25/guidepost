@@ -66,7 +66,15 @@ export async function scoreJobMatch(
         .replace("{description}", (job.description || "No description available").substring(0, 2000));
 
     try {
-        const result = await model.generateContent(prompt);
+        const timeoutPromise = new Promise<{ response: { text: () => string } }>((_, reject) =>
+            setTimeout(() => reject(new Error("Gemini AI API timeout after 15 seconds")), 15000)
+        );
+
+        const result = await Promise.race([
+            model.generateContent(prompt),
+            timeoutPromise
+        ]);
+
         const text = result.response.text();
         const cleaned = text.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
         const parsed = JSON.parse(cleaned) as MatchResult;

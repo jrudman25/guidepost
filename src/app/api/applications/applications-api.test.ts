@@ -141,3 +141,41 @@ describe("form payload sanitization", () => {
         expect(payload.heard_back_at).toBe("2026-01-20");
     });
 });
+
+// ---------------------------------------------------------------------------
+// Pagination parsing logic (extracted from GET /api/applications)
+// ---------------------------------------------------------------------------
+
+function parsePaginationParams(searchParams: URLSearchParams) {
+    const limitParams = searchParams.get("limit");
+    const offsetParams = searchParams.get("offset");
+
+    // Use default values 20/0 if null/missing/empty
+    const limit = limitParams ? parseInt(limitParams) : 20;
+    const offset = offsetParams ? parseInt(offsetParams) : 0;
+
+    return {
+        limit: isNaN(limit) ? 20 : limit,
+        offset: isNaN(offset) ? 0 : offset,
+    };
+}
+
+describe("parsePaginationParams", () => {
+    it("returns default limit 20 and offset 0 when params are missing", () => {
+        const searchParams = new URLSearchParams("");
+        const result = parsePaginationParams(searchParams);
+        expect(result).toEqual({ limit: 20, offset: 0 });
+    });
+
+    it("parses valid limit and offset", () => {
+        const searchParams = new URLSearchParams("limit=50&offset=100");
+        const result = parsePaginationParams(searchParams);
+        expect(result).toEqual({ limit: 50, offset: 100 });
+    });
+
+    it("falls back to defaults if parsing returns NaN", () => {
+        const searchParams = new URLSearchParams("limit=foo&offset=bar");
+        const result = parsePaginationParams(searchParams);
+        expect(result).toEqual({ limit: 20, offset: 0 });
+    });
+});

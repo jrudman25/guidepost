@@ -39,6 +39,7 @@ export default function InboxPage() {
     const [totalJobs, setTotalJobs] = useState(0);
     const [page, setPage] = useState(1);
     const [loading, setLoading] = useState(true);
+    const [isFetching, setIsFetching] = useState(false);
     const [searching, setSearching] = useState(false);
     const [activeTab, setActiveTab] = useState("new");
     const [selectedJob, setSelectedJob] = useState<JobListing | null>(null);
@@ -68,7 +69,7 @@ export default function InboxPage() {
     }
 
     const fetchJobs = useCallback(async (status?: string, currentPage = 1) => {
-        setLoading(true);
+        setIsFetching(true);
         try {
             const limit = 20;
             const offset = (currentPage - 1) * limit;
@@ -83,6 +84,7 @@ export default function InboxPage() {
             console.error("Failed to fetch jobs:", error);
         } finally {
             setLoading(false);
+            setIsFetching(false);
         }
     }, []);
 
@@ -281,7 +283,7 @@ export default function InboxPage() {
                 <div className="flex items-center justify-center py-12">
                     <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                 </div>
-            ) : jobs.length === 0 ? (
+            ) : jobs.length === 0 && !isFetching ? (
                 <div className="rounded-xl border border-dashed border-border py-12 text-center">
                     <p className="text-muted-foreground">
                         {activeTab === "new"
@@ -289,8 +291,12 @@ export default function InboxPage() {
                             : `No ${activeTab} listings.`}
                     </p>
                 </div>
+            ) : jobs.length === 0 && isFetching ? (
+                <div className="flex items-center justify-center py-12">
+                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                </div>
             ) : (
-                <div className="flex gap-6">
+                <div className={cn("flex gap-6 items-start transition-opacity duration-200", isFetching && "opacity-50 pointer-events-none")}>
                     {/* Job list */}
                     <div className="w-full space-y-3 lg:w-1/2">
                         {/* Bulk action bar */}
@@ -414,7 +420,7 @@ export default function InboxPage() {
 
                     {/* Job detail panel */}
                     {selectedJob && (
-                        <div className="hidden w-1/2 space-y-4 rounded-xl border border-border bg-card p-6 lg:block">
+                        <div className="hidden w-1/2 space-y-4 rounded-xl border border-border bg-card p-6 lg:block sticky top-6">
                             <div className="flex items-start justify-between">
                                 <div>
                                     <h2 className="text-xl font-bold">{selectedJob.title}</h2>
@@ -508,7 +514,7 @@ export default function InboxPage() {
 
                             {/* Description */}
                             {selectedJob.description && (
-                                <div className="max-h-96 overflow-y-auto">
+                                <div className="max-h-96 overflow-y-auto rounded-lg bg-muted/50 p-4">
                                     <p className="text-xs font-medium uppercase text-muted-foreground mb-2">
                                         Job Description
                                     </p>

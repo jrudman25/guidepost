@@ -121,6 +121,25 @@ describe("scoreJobMatch", () => {
         expect(result.reasoning).toContain("defaulted to 50");
     });
 
+    it("returns default score of 50 on 15s timeout", async () => {
+        // Mock a slow API response that takes 20 seconds
+        mockGenerateContent.mockImplementation(() =>
+            new Promise((resolve) => setTimeout(() => resolve({
+                response: { text: () => JSON.stringify({ score: 99, reasoning: "Too slow." }) }
+            }), 20000))
+        );
+
+        // Fast-forward fake timers immediately so test doesn't hang
+        vi.useFakeTimers();
+        const scorePromise = scoreJobMatch(sampleJob, makeResume());
+        await vi.advanceTimersByTimeAsync(16000);
+
+        const result = await scorePromise;
+        expect(result.score).toBe(50);
+        expect(result.reasoning).toContain("defaulted to 50");
+        vi.useRealTimers();
+    });
+
     it("returns default score on malformed JSON", async () => {
         mockGenerateContent.mockResolvedValue({
             response: { text: () => "not valid json at all" },

@@ -23,7 +23,22 @@ export async function GET(request: Request) {
         // Use service role client (bypasses RLS since cron has no user session)
         const supabase = createServiceClient();
 
-        // Execute search directly (no HTTP round-trip needed)
+        // 1. Clean up old dismissed jobs (older than 3 months) to save DB space
+        const threeMonthsAgo = new Date();
+        threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
+
+        const { error: cleanupError } = await supabase
+            .from("job_listings")
+            .delete()
+            .eq("status", "dismissed")
+            .lt("discovered_at", threeMonthsAgo.toISOString());
+
+        if (cleanupError) {
+            console.error("Failed to cleanup old jobs:", cleanupError);
+            // Non-fatal, continue with search
+        }
+
+        // 2. Execute search directly (no HTTP round-trip needed)
         const result = await executeJobSearch(undefined, supabase);
 
         return NextResponse.json({

@@ -60,6 +60,7 @@ export default function ApplicationsPage() {
     const [page, setPage] = useState(1);
     const [totalApplications, setTotalApplications] = useState(0);
     const [loading, setLoading] = useState(true);
+    const [isFetching, setIsFetching] = useState(false);
     const [dialogOpen, setDialogOpen] = useState(false);
     const [filterStatus, setFilterStatus] = useState<string>("all");
     const [editingApp, setEditingApp] = useState<Application | null>(null);
@@ -79,7 +80,7 @@ export default function ApplicationsPage() {
     const [form, setForm] = useState(emptyForm);
 
     const fetchApplications = useCallback(async () => {
-        setLoading(true);
+        setIsFetching(true);
         try {
             const limit = 20;
             const offset = (page - 1) * limit;
@@ -95,6 +96,7 @@ export default function ApplicationsPage() {
             console.error("Failed to fetch applications:", error);
         } finally {
             setLoading(false);
+            setIsFetching(false);
         }
     }, [filterStatus, page]);
 
@@ -361,15 +363,19 @@ export default function ApplicationsPage() {
                 <div className="flex items-center justify-center py-12">
                     <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                 </div>
-            ) : applications.length === 0 ? (
+            ) : applications.length === 0 && !isFetching ? (
                 <div className="rounded-xl border border-dashed border-border py-12 text-center">
                     <p className="text-muted-foreground">
                         No applications yet. Click &quot;Add Application&quot; to start
                         tracking.
                     </p>
                 </div>
+            ) : applications.length === 0 && isFetching ? (
+                <div className="flex items-center justify-center py-12">
+                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                </div>
             ) : (
-                <div className="space-y-3">
+                <div className={cn("space-y-3 transition-opacity duration-200", isFetching && "opacity-50 pointer-events-none")}>
                     {applications.map((app) => (
                         <div
                             key={app.id}
