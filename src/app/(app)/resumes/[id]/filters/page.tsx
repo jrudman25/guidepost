@@ -16,6 +16,7 @@ import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, Loader2, Plus, X } from "lucide-react";
 import { toast } from "sonner";
 import type { SearchFilter } from "@/lib/types";
+import { handleApiError, toastApiError } from "@/lib/utils";
 
 export default function FiltersPage() {
     const params = useParams();
@@ -101,10 +102,10 @@ export default function FiltersPage() {
                 body: JSON.stringify(filters),
             });
 
-            if (!response.ok) throw new Error("Failed to save");
+            await handleApiError(response, "Failed to save filters");
             toast.success("Filters saved!");
-        } catch {
-            toast.error("Failed to save filters");
+        } catch (e) {
+            toastApiError(e, "Failed to save filters");
         } finally {
             setSaving(false);
         }

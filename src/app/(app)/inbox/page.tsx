@@ -23,7 +23,7 @@ import {
     Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
-import { cn } from "@/lib/utils";
+import { cn, handleApiError, toastApiError } from "@/lib/utils";
 import { PaginationControls } from "@/components/pagination-controls";
 
 function getScoreColor(score: number | null): string {
@@ -163,8 +163,8 @@ export default function InboxPage() {
                 applied: "Marked as applied",
             };
             toast.success(labels[status] || "Status updated");
-        } catch {
-            toast.error("Failed to update job status");
+        } catch (e) {
+            toastApiError(e, "Failed to update job status");
         }
     }
 
@@ -197,8 +197,7 @@ export default function InboxPage() {
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ ids: [...selectedIds], status }),
             });
-
-            if (!response.ok) throw new Error("Failed to update");
+            await handleApiError(response, "Failed to update jobs");
 
             // Count unseen "new" jobs in the selection for sidebar update
             const unseenCount = jobs.filter(
@@ -233,8 +232,8 @@ export default function InboxPage() {
 
             toast.success(`${selectedIds.size} job${selectedIds.size > 1 ? "s" : ""} ${status}`);
             setSelectedIds(new Set());
-        } catch {
-            toast.error("Failed to update jobs");
+        } catch (e) {
+            toastApiError(e, "Failed to update jobs");
         } finally {
             setBulkUpdating(false);
         }

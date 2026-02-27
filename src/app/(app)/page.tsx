@@ -36,6 +36,7 @@ interface Stats {
     newJobsThisWeek: number;
     resumeSkills: string[];
     totalApplications: number;
+    userName?: string;
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -149,9 +150,9 @@ export default function DashboardPage() {
                 {/* Charts row skeleton */}
                 <div className="grid gap-6 lg:grid-cols-2">
                     {[1, 2].map((i) => (
-                        <div key={i} className="rounded-xl border border-border bg-card p-6 h-[330px]">
-                            <Skeleton className="h-6 w-48 mb-6" />
-                            <Skeleton className="h-full w-full rounded-md" />
+                        <div key={i} className="rounded-xl border border-border bg-card p-6 h-[330px] flex flex-col">
+                            <Skeleton className="h-6 w-48 mb-6 shrink-0" />
+                            <Skeleton className="w-full flex-1 rounded-md" />
                         </div>
                     ))}
                 </div>
@@ -179,7 +180,7 @@ export default function DashboardPage() {
         <div className="space-y-8">
             <div>
                 <h1 className="text-3xl font-bold tracking-tight">
-                    {greeting}, Jordan
+                    {greeting}, {stats.userName || "Jordan"}
                 </h1>
                 <p className="mt-1 text-muted-foreground">
                     Your job search at a glance.

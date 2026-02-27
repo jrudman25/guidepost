@@ -11,7 +11,29 @@ import { toast } from "sonner";
 export default function LoginPage() {
     const [email, setEmail] = useState("");
     const [loading, setLoading] = useState(false);
+    const [guestLoading, setGuestLoading] = useState(false);
     const [sent, setSent] = useState(false);
+
+    async function handleGuestLogin() {
+        setGuestLoading(true);
+        const supabase = createClient();
+
+        const { error } = await supabase.auth.signInWithPassword({
+            email: "demo@guidepostai.app",
+            password: "demo123",
+        });
+
+        if (error) {
+            setGuestLoading(false);
+            toast.error("Failed to sign in as guest", {
+                description: error.message,
+            });
+            return;
+        }
+
+        // Redirect to dashboard (middleware will handle session refresh)
+        window.location.href = "/";
+    }
 
     async function handleLogin(e: React.FormEvent) {
         e.preventDefault();
@@ -82,9 +104,29 @@ export default function LoginPage() {
                                 autoFocus
                             />
                         </div>
-                        <Button type="submit" className="w-full" disabled={loading}>
+                        <Button type="submit" className="w-full" disabled={loading || guestLoading}>
                             {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                             Send magic link
+                        </Button>
+                        <div className="relative my-4">
+                            <div className="absolute inset-0 flex items-center">
+                                <span className="w-full border-t border-border" />
+                            </div>
+                            <div className="relative flex justify-center text-xs uppercase">
+                                <span className="bg-card px-2 text-muted-foreground">
+                                    Or
+                                </span>
+                            </div>
+                        </div>
+                        <Button
+                            type="button"
+                            variant="secondary"
+                            className="w-full"
+                            disabled={loading || guestLoading}
+                            onClick={handleGuestLogin}
+                        >
+                            {guestLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                            Sign in as Guest
                         </Button>
                     </form>
                 )}

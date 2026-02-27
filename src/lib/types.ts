@@ -2,6 +2,7 @@
 
 export interface Resume {
     id: string;
+    user_id: string;
     file_path: string;
     file_name: string;
     uploaded_at: string;
@@ -21,6 +22,7 @@ export interface ParsedResumeData {
 
 export interface SearchFilter {
     id: string;
+    user_id: string;
     resume_id: string;
     keywords: string[];
     location: string | null;
@@ -33,6 +35,7 @@ export interface SearchFilter {
 
 export interface JobListing {
     id: string;
+    user_id: string;
     resume_id: string | null;
     title: string;
     company: string;
@@ -52,6 +55,7 @@ export interface JobListing {
 
 export interface Application {
     id: string;
+    user_id: string;
     job_listing_id: string | null;
     job_title: string;
     company: string;

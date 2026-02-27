@@ -123,6 +123,7 @@ export async function executeJobSearch(resumeId?: string, externalClient?: Supab
                         .from("job_listings")
                         .insert({
                             ...normalized,
+                            user_id: resume.user_id,
                             match_score: matchResult.score,
                             match_reasoning: matchResult.reasoning,
                             status: "new",

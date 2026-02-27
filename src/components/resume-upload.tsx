@@ -4,7 +4,7 @@ import { useState, useCallback } from "react";
 import { Upload, FileText, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { cn } from "@/lib/utils";
+import { cn, handleApiError, toastApiError } from "@/lib/utils";
 
 interface ResumeUploadProps {
     onUploadComplete: () => void;
@@ -63,17 +63,13 @@ export function ResumeUpload({ onUploadComplete }: ResumeUploadProps) {
 
             const data = await response.json();
 
-            if (!response.ok) {
-                throw new Error(data.error || "Upload failed");
-            }
+            await handleApiError(response, "Upload failed");
 
             toast.success("Resume uploaded and parsed successfully!");
             setSelectedFile(null);
             onUploadComplete();
-        } catch (error) {
-            toast.error(
-                error instanceof Error ? error.message : "Failed to upload resume"
-            );
+        } catch (e) {
+            toastApiError(e, "Failed to upload resume");
         } finally {
             setUploading(false);
         }

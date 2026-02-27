@@ -142,7 +142,7 @@ export function AppSidebar() {
                     Log Out
                 </button>
                 <p className="mt-2 px-3 text-xs text-muted-foreground">
-                    Guidepost v0.4.4
+                    Guidepost v0.5.0
                 </p>
             </div>
         </aside>

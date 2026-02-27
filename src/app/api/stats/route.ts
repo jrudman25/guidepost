@@ -9,6 +9,7 @@ import { computeStats, type StatsApplication } from "./stats";
 export async function GET() {
     try {
         const supabase = await createClient();
+        const { data: { user } } = await supabase.auth.getUser();
 
         // Get all applications
         const { data: applications } = await supabase
@@ -18,8 +19,32 @@ export async function GET() {
 
         const apps = (applications || []) as StatsApplication[];
 
+        const today = new Date();
+
+        if (user?.email === "demo@guidepostai.app" && apps.length > 0) {
+            const maxDate = new Date(Math.max(...apps.map(a => new Date(a.applied_at).getTime())));
+            // Move dates forward so the most recent application lands safely inside today's bucket (-1 hour)
+            const offsetMs = today.getTime() - maxDate.getTime() - (60 * 60 * 1000);
+
+            apps.forEach(app => {
+                const applied = new Date(app.applied_at);
+                app.applied_at = new Date(applied.getTime() + offsetMs).toISOString();
+
+                if (app.heard_back_at) {
+                    const heard = new Date(app.heard_back_at);
+                    app.heard_back_at = new Date(heard.getTime() + offsetMs).toISOString();
+                }
+
+                if (app.status_updated_at) {
+                    const updated = new Date(app.status_updated_at);
+                    app.status_updated_at = new Date(updated.getTime() + offsetMs).toISOString();
+                }
+            });
+        }
+
         // Compute pure stats from application data
-        const stats = computeStats(apps);
+        // Pass `today` if we are shifting dates, so we synchronously measure relative to the same millisecond 
+        const stats = computeStats(apps, user?.email === "demo@guidepostai.app" ? today : undefined);
 
         // Active resumes count
         const { count: activeResumes } = await supabase
@@ -59,6 +84,7 @@ export async function GET() {
 
         return NextResponse.json({
             ...stats,
+            userName: user?.email === "demo@guidepostai.app" ? "Guest" : "Jordan",
             activeResumes: activeResumes || 0,
             newJobsThisWeek: newJobsThisWeek || 0,
             resumeSkills: [...new Set(resumeSkills)],

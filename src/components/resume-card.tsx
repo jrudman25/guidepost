@@ -20,7 +20,7 @@ import {
     SlidersHorizontal,
 } from "lucide-react";
 import { toast } from "sonner";
-import { cn } from "@/lib/utils";
+import { cn, handleApiError, toastApiError } from "@/lib/utils";
 
 interface ResumeCardProps {
     resume: Resume;
@@ -42,7 +42,7 @@ export function ResumeCard({ resume, onUpdate }: ResumeCardProps) {
                 body: JSON.stringify({ is_active: !resume.is_active }),
             });
 
-            if (!response.ok) throw new Error("Failed to update");
+            await handleApiError(response, "Failed to update resume");
 
             toast.success(
                 resume.is_active
@@ -50,8 +50,8 @@ export function ResumeCard({ resume, onUpdate }: ResumeCardProps) {
                     : "Resume activated \u2014 will be included in daily scans"
             );
             onUpdate();
-        } catch {
-            toast.error("Failed to update resume");
+        } catch (e) {
+            toastApiError(e, "Failed to update resume");
         } finally {
             setLoading(false);
         }
@@ -66,12 +66,12 @@ export function ResumeCard({ resume, onUpdate }: ResumeCardProps) {
                 method: "DELETE",
             });
 
-            if (!response.ok) throw new Error("Failed to delete");
+            await handleApiError(response, "Failed to delete resume");
 
             toast.success("Resume deleted");
             onUpdate();
-        } catch {
-            toast.error("Failed to delete resume");
+        } catch (e) {
+            toastApiError(e, "Failed to delete resume");
         } finally {
             setLoading(false);
         }

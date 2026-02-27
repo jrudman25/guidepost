@@ -34,7 +34,7 @@ import {
     Reply,
 } from "lucide-react";
 import { toast } from "sonner";
-import { cn } from "@/lib/utils";
+import { cn, handleApiError, toastApiError } from "@/lib/utils";
 import { PaginationControls } from "@/components/pagination-controls";
 
 const STATUS_OPTIONS: { value: ApplicationStatus; label: string }[] = [
@@ -120,7 +120,7 @@ export default function ApplicationsPage() {
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify(payload),
                 });
-                if (!response.ok) throw new Error("Failed to update");
+                await handleApiError(response, "Failed to update application");
                 toast.success("Application updated!");
             } else {
                 // Add mode — POST
@@ -129,7 +129,7 @@ export default function ApplicationsPage() {
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify(payload),
                 });
-                if (!response.ok) throw new Error("Failed to create");
+                await handleApiError(response, "Failed to add application");
                 toast.success("Application added!");
             }
 
@@ -137,8 +137,8 @@ export default function ApplicationsPage() {
             setEditingApp(null);
             setForm(emptyForm);
             fetchApplications();
-        } catch {
-            toast.error(editingApp ? "Failed to update application" : "Failed to add application");
+        } catch (e) {
+            toastApiError(e, editingApp ? "Failed to update application" : "Failed to add application");
         }
     }
 
@@ -171,14 +171,14 @@ export default function ApplicationsPage() {
                 body: JSON.stringify({ status }),
             });
 
-            if (!response.ok) throw new Error("Failed to update");
+            await handleApiError(response, "Failed to update application status");
 
             setApplications((prev) =>
                 prev.map((a) => (a.id === id ? { ...a, status } : a))
             );
             toast.success("Status updated");
-        } catch {
-            toast.error("Failed to update status");
+        } catch (e) {
+            toastApiError(e, "Failed to update status");
         }
     }
 
@@ -190,12 +190,12 @@ export default function ApplicationsPage() {
                 method: "DELETE",
             });
 
-            if (!response.ok) throw new Error("Failed to delete");
+            await handleApiError(response, "Failed to delete application");
 
             toast.success("Application deleted");
             fetchApplications();
-        } catch {
-            toast.error("Failed to delete application");
+        } catch (e) {
+            toastApiError(e, "Failed to delete application");
         }
     }
 
