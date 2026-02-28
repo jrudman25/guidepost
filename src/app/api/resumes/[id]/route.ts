@@ -52,7 +52,6 @@ export async function DELETE(
 
         // Delete from storage
         if (resume?.file_path) {
-            console.log("Deleting storage file:", resume.file_path);
             const { error: storageError } = await supabase.storage
                 .from("resumes")
                 .remove([resume.file_path]);

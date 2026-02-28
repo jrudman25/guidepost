@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import Link from "next/link";
 import type { JobListing } from "@/lib/types";
+import { parseLocalDate, toLocalDateString } from "@/lib/date-utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -426,6 +427,13 @@ export default function InboxPage() {
                                     <p className="mt-1 text-muted-foreground">
                                         {selectedJob.company}
                                     </p>
+                                    {selectedJob.discovered_at && (
+                                        <p className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground">
+                                            <Clock className="h-3 w-3" />
+                                            Found on {parseLocalDate(toLocalDateString(selectedJob.discovered_at)).toLocaleDateString()} at{" "}
+                                            {parseLocalDate(selectedJob.discovered_at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}
+                                        </p>
+                                    )}
                                 </div>
                                 <Badge
                                     variant="outline"

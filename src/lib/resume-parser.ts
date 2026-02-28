@@ -19,9 +19,9 @@ Return a JSON object with EXACTLY these fields:
 Rules:
 - Return ONLY valid JSON, no markdown formatting or code blocks
 - If a field cannot be determined, use an empty array [] or 0 for numbers
-- For skills, include both specific technologies AND general competencies
+- For skills, ONLY include industry-standard technologies, tools, frameworks, languages, methodologies, and competencies that would realistically appear in the "Required Skills" or "Qualifications" section of a job listing. Examples: "React", "Python", "AWS", "Docker", "Agile", "REST APIs", "CI/CD". Do NOT include project descriptions, feature-level details (e.g. "in-browser audio playback"), or overly specific implementation details.
 - For job_titles, ONLY include titles that would realistically appear in a job posting on LinkedIn or Indeed. Include the person's most recent professional title and 2-3 related titles they'd likely search for. Do NOT include academic roles (e.g. "Teaching Assistant"), club positions (e.g. "Student Developer", "Club President"), or volunteer titles.
-- Be thorough but accurate — only include what's actually in the resume
+- Be thorough but accurate \u2014 only include what's actually in the resume
 
 Resume text:
 `;

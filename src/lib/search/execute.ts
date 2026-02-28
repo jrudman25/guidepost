@@ -66,6 +66,20 @@ export async function executeJobSearch(resumeId?: string, externalClient?: Supab
                 const jobs = await searchJobs(queryStr, searchFilters);
                 console.log(`[search] Query "${queryStr}": ${jobs.length} results from SerpAPI`);
 
+                // Batch-check for duplicate URLs (replaces N+1 per-job queries)
+                const allUrls = jobs
+                    .map((j) => normalizeJob(j, resume.id).url)
+                    .filter((u): u is string => u !== null);
+
+                const existingUrls = new Set<string>();
+                if (allUrls.length > 0) {
+                    const { data: existingJobs } = await supabase
+                        .from("job_listings")
+                        .select("url")
+                        .in("url", allUrls);
+                    existingJobs?.forEach((j) => existingUrls.add(j.url));
+                }
+
                 for (const job of jobs) {
                     // Skip excluded companies
                     if (
@@ -81,20 +95,14 @@ export async function executeJobSearch(resumeId?: string, externalClient?: Supab
                     // Normalize the job data
                     const normalized = normalizeJob(job, resume.id);
 
-                    // Skip if no URL (can't deduplicate) or if URL already exists
+                    // Skip if no URL (can't deduplicate)
                     if (!normalized.url) {
                         console.log(`[search] Skipped: no URL for "${normalized.title}"`);
                         continue;
                     }
 
-                    // Check for duplicate
-                    const { data: existing } = await supabase
-                        .from("job_listings")
-                        .select("id")
-                        .eq("url", normalized.url)
-                        .maybeSingle();
-
-                    if (existing) {
+                    // Skip duplicates (checked via batch query above)
+                    if (existingUrls.has(normalized.url)) {
                         console.log(`[search] Skipped: duplicate URL for "${normalized.title}"`);
                         continue;
                     }
@@ -131,6 +139,7 @@ export async function executeJobSearch(resumeId?: string, externalClient?: Supab
 
                     if (!insertError) {
                         totalNewJobs++;
+                        existingUrls.add(normalized.url);
                     }
                 }
             } catch (searchError) {
