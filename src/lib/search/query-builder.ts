@@ -59,6 +59,8 @@ export function buildSerpApiParams(
     const params: Record<string, string> = {
         engine: "google_jobs",
         q: query,
+        hl: "en",   // Force English results
+        gl: "us",   // US-centric results
     };
 
     // Location filter

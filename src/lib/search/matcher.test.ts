@@ -175,22 +175,37 @@ describe("scoreJobMatch", () => {
 describe("scoreJobBatch", () => {
     beforeEach(() => {
         vi.clearAllMocks();
-        vi.useFakeTimers();
     });
 
-    it("scores all jobs in order", async () => {
-        let callCount = 0;
-        mockGenerateContent.mockImplementation(() => {
-            callCount++;
-            return Promise.resolve({
-                response: {
-                    text: () =>
-                        JSON.stringify({
-                            score: callCount * 10,
-                            reasoning: `Job ${callCount}`,
-                        }),
-                },
-            });
+    it("returns empty array for empty input", async () => {
+        const results = await scoreJobBatch([], makeResume());
+        expect(results).toHaveLength(0);
+        expect(mockGenerateContent).not.toHaveBeenCalled();
+    });
+
+    it("uses single-job scoring for 1 job", async () => {
+        mockGenerateContent.mockResolvedValue({
+            response: {
+                text: () =>
+                    JSON.stringify({ score: 85, reasoning: "Great fit." }),
+            },
+        });
+
+        const results = await scoreJobBatch([sampleJob], makeResume());
+        expect(results).toHaveLength(1);
+        expect(results[0].score).toBe(85);
+        expect(mockGenerateContent).toHaveBeenCalledTimes(1);
+    });
+
+    it("scores multiple jobs in a single batch API call", async () => {
+        mockGenerateContent.mockResolvedValue({
+            response: {
+                text: () =>
+                    JSON.stringify([
+                        { score: 90, reasoning: "Excellent match." },
+                        { score: 60, reasoning: "Partial match." },
+                    ]),
+            },
         });
 
         const jobs = [
@@ -198,14 +213,26 @@ describe("scoreJobBatch", () => {
             { title: "B", company: "Y", description: "desc" },
         ];
 
-        const batchPromise = scoreJobBatch(jobs, makeResume());
-
-        // Advance through the 200ms delays between jobs
-        await vi.advanceTimersByTimeAsync(500);
-
-        const results = await batchPromise;
+        const results = await scoreJobBatch(jobs, makeResume());
         expect(results).toHaveLength(2);
-        expect(results[0].score).toBe(10);
-        expect(results[1].score).toBe(20);
+        expect(results[0].score).toBe(90);
+        expect(results[1].score).toBe(60);
+        // Only 1 API call for 2 jobs (batched)
+        expect(mockGenerateContent).toHaveBeenCalledTimes(1);
+    });
+
+    it("returns fallback scores on batch failure", async () => {
+        mockGenerateContent.mockRejectedValue(new Error("API error"));
+
+        const jobs = [
+            { title: "A", company: "X", description: "desc" },
+            { title: "B", company: "Y", description: "desc" },
+        ];
+
+        const results = await scoreJobBatch(jobs, makeResume());
+        expect(results).toHaveLength(2);
+        expect(results[0].score).toBe(50);
+        expect(results[1].score).toBe(50);
     });
 });
+

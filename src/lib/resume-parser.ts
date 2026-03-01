@@ -27,7 +27,7 @@ Resume text:
 `;
 
 export async function parseResume(text: string): Promise<ParsedResumeData> {
-    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+    const model = genAI.getGenerativeModel({ model: "gemini-3-flash" });
 
     const result = await model.generateContent(RESUME_PARSE_PROMPT + text);
     const response = result.response.text();

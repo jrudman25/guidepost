@@ -10,6 +10,7 @@ import {
     ClipboardList,
     Compass,
     LogOut,
+    ScrollText,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
@@ -19,6 +20,7 @@ const navigation = [
     { name: "Resumes", href: "/resumes", icon: FileText },
     { name: "Job Inbox", href: "/inbox", icon: Inbox },
     { name: "Applications", href: "/applications", icon: ClipboardList },
+    { name: "Pipeline Logs", href: "/logs", icon: ScrollText },
 ];
 
 export function AppSidebar() {
@@ -26,6 +28,7 @@ export function AppSidebar() {
     const router = useRouter();
     const [unseenCount, setUnseenCount] = useState(0);
     const [inboxTotal, setInboxTotal] = useState(0);
+    const [userEmail, setUserEmail] = useState<string | null>(null);
 
     const fetchCounts = useCallback(async () => {
         try {
@@ -42,6 +45,13 @@ export function AppSidebar() {
 
     useEffect(() => {
         fetchCounts();
+
+        // Fetch user email to control nav visibility
+        const supabase = createClient();
+        supabase.auth.getUser().then(({ data }) => {
+            setUserEmail(data.user?.email ?? null);
+        });
+
         const interval = setInterval(fetchCounts, 300_000); // 5 min — only needed for cron-discovered jobs
 
         // Listen for immediate updates from the inbox page
@@ -88,48 +98,52 @@ export function AppSidebar() {
 
             {/* Navigation */}
             <nav className="flex-1 space-y-1 px-3 py-4">
-                {navigation.map((item) => {
-                    const isActive =
-                        item.href === "/"
-                            ? pathname === "/"
-                            : pathname.startsWith(item.href);
+                {navigation
+                    .filter((item) =>
+                        item.href !== "/logs" || userEmail !== "demo@guidepostai.app"
+                    )
+                    .map((item) => {
+                        const isActive =
+                            item.href === "/"
+                                ? pathname === "/"
+                                : pathname.startsWith(item.href);
 
-                    return (
-                        <Link
-                            key={item.name}
-                            href={item.href}
-                            className={cn(
-                                "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
-                                isActive
-                                    ? "bg-primary text-primary-foreground"
-                                    : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-                            )}
-                        >
-                            <item.icon className="h-4 w-4" />
-                            {item.name}
-                            {item.name === "Job Inbox" && (
-                                <div className="ml-auto flex items-center gap-1.5">
-                                    {unseenCount > 0 && (
-                                        <span
-                                            className="inline-flex min-w-[20px] items-center justify-center rounded-full bg-blue-500 px-1.5 py-0.5 text-[10px] font-semibold text-white leading-none"
-                                            title={`${unseenCount} unseen jobs`}
-                                        >
-                                            {unseenCount > 99 ? "99+" : unseenCount}
-                                        </span>
-                                    )}
-                                    {inboxTotal > 0 && (
-                                        <span
-                                            className="inline-flex min-w-[20px] items-center justify-center rounded-full bg-muted text-muted-foreground px-1.5 py-0.5 text-[10px] font-medium leading-none"
-                                            title={`${inboxTotal} total jobs in inbox`}
-                                        >
-                                            {inboxTotal > 99 ? "99+" : inboxTotal}
-                                        </span>
-                                    )}
-                                </div>
-                            )}
-                        </Link>
-                    );
-                })}
+                        return (
+                            <Link
+                                key={item.name}
+                                href={item.href}
+                                className={cn(
+                                    "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
+                                    isActive
+                                        ? "bg-primary text-primary-foreground"
+                                        : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                                )}
+                            >
+                                <item.icon className="h-4 w-4" />
+                                {item.name}
+                                {item.name === "Job Inbox" && (
+                                    <div className="ml-auto flex items-center gap-1.5">
+                                        {unseenCount > 0 && (
+                                            <span
+                                                className="inline-flex min-w-[20px] items-center justify-center rounded-full bg-blue-500 px-1.5 py-0.5 text-[10px] font-semibold text-white leading-none"
+                                                title={`${unseenCount} unseen jobs`}
+                                            >
+                                                {unseenCount > 99 ? "99+" : unseenCount}
+                                            </span>
+                                        )}
+                                        {inboxTotal > 0 && (
+                                            <span
+                                                className="inline-flex min-w-[20px] items-center justify-center rounded-full bg-muted text-muted-foreground px-1.5 py-0.5 text-[10px] font-medium leading-none"
+                                                title={`${inboxTotal} total jobs in inbox`}
+                                            >
+                                                {inboxTotal > 99 ? "99+" : inboxTotal}
+                                            </span>
+                                        )}
+                                    </div>
+                                )}
+                            </Link>
+                        );
+                    })}
             </nav>
 
             {/* Footer */}
@@ -142,7 +156,7 @@ export function AppSidebar() {
                     Log Out
                 </button>
                 <p className="mt-2 px-3 text-xs text-muted-foreground">
-                    Guidepost v0.5.1
+                    Guidepost v0.6.0
                 </p>
             </div>
         </aside>

@@ -58,6 +58,7 @@ export async function PUT(
             keywords: body.keywords || [],
             location: body.location || null,
             remote_preference: body.remote_preference || "any",
+            target_seniority: body.target_seniority || "any",
             min_salary: body.min_salary || null,
             max_listing_age_days: body.max_listing_age_days || 7,
             excluded_companies: body.excluded_companies || [],

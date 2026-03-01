@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { executeJobSearch } from "@/lib/search/execute";
+import { createClient } from "@/lib/supabase/server";
 
 /**
  * POST /api/jobs/search
@@ -11,11 +12,16 @@ export async function POST(request: Request) {
         const body = await request.json().catch(() => ({}));
         const resumeId = body.resume_id as string | undefined;
 
-        const result = await executeJobSearch(resumeId);
+        const supabase = await createClient();
+        const result = await executeJobSearch(resumeId, supabase);
+
+        // Persist pipeline logs (manual searches get logged too)
+        await result.logger.persist(supabase);
 
         return NextResponse.json({
             success: true,
-            ...result,
+            new_jobs_found: result.new_jobs_found,
+            resumes_searched: result.resumes_searched,
         });
     } catch (error) {
         console.error("Job search error:", error);
