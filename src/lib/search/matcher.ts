@@ -88,7 +88,7 @@ export async function scoreJobMatch(
     resume: ParsedResumeData,
     targetSeniority: string = "any"
 ): Promise<MatchResult> {
-    const model = genAI.getGenerativeModel({ model: "gemini-3-flash" });
+    const model = genAI.getGenerativeModel({ model: "gemini-3-flash-preview" });
 
     const prompt = SINGLE_MATCH_PROMPT
         .replace("{titles}", resume.job_titles.join(", "))

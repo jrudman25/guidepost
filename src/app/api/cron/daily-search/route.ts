@@ -51,8 +51,16 @@ export async function GET(request: Request) {
             console.log(`[cron] Pruned ${prunedCount} old pipeline log(s)`);
         }
 
-        // 5. Execute search
-        const result = await executeJobSearch(undefined, supabase);
+        // 5. Look up demo account to exclude from search (saves API usage)
+        let demoUserId: string | undefined;
+        const { data: demoUsers } = await supabase.auth.admin.listUsers();
+        const demoUser = demoUsers?.users?.find((u) => u.email === "demo@guidepostai.app");
+        if (demoUser) {
+            demoUserId = demoUser.id;
+        }
+
+        // 6. Execute search (excluding demo account)
+        const result = await executeJobSearch(undefined, supabase, demoUserId);
 
         // 6. Persist pipeline logs to Supabase Storage
         await result.logger.persist(supabase);

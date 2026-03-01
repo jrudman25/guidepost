@@ -19,7 +19,8 @@ interface NormalizedCandidate {
  */
 export async function executeJobSearch(
     resumeId?: string,
-    externalClient?: SupabaseClient
+    externalClient?: SupabaseClient,
+    excludeUserId?: string
 ): Promise<{ new_jobs_found: number; resumes_searched: number; logger: PipelineLogger }> {
     const supabase = externalClient || await createClient();
     const logger = new PipelineLogger();
@@ -33,6 +34,11 @@ export async function executeJobSearch(
 
     if (resumeId) {
         query = query.eq("id", resumeId);
+    }
+
+    // Exclude specific user (e.g., demo account) from cron searches
+    if (excludeUserId) {
+        query = query.neq("user_id", excludeUserId);
     }
 
     const { data: resumes, error: resumeError } = await query;

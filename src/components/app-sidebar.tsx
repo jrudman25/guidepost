@@ -156,7 +156,27 @@ export function AppSidebar() {
                     Log Out
                 </button>
                 <p className="mt-2 px-3 text-xs text-muted-foreground">
-                    Guidepost v0.6.0
+                    Guidepost v0.6.1
+                </p>
+                <p className="px-3 text-xs text-muted-foreground">
+                    Built by{" "}
+                    <a
+                        href="https://github.com/jrudman25"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="underline hover:text-foreground transition-colors"
+                    >
+                        Jordan Rudman
+                    </a>
+                    {" \u00b7 "}
+                    <a
+                        href="https://github.com/jrudman25/guidepost"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="underline hover:text-foreground transition-colors"
+                    >
+                        Source
+                    </a>
                 </p>
             </div>
         </aside>
