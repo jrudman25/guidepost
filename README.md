@@ -4,12 +4,15 @@ A full-stack job search management tool that automatically finds job listings ma
 
 ## What It Does
 
-1. **Upload a resume** (PDF) -- Gemini extracts your skills, titles, experience, and industries
-2. **Configure search filters** -- location, remote preference, keywords, excluded companies, listing age
-3. **Auto-discover jobs** -- a daily cron job queries Google Jobs via SerpAPI and deduplicates results
-4. **AI match scoring** -- each listing is scored 0-100 against your resume with a written explanation
-5. **Track applications** -- move jobs through a pipeline (applied, screening, interview, offer, rejected, ghosted)
-6. **Dashboard analytics** -- response rate, weekly volume, status breakdown, and skill demand trends
+1. **Upload a resume** (PDF) — Gemini extracts your skills, titles, experience, and industries
+2. **Configure search filters** — location, remote preference, seniority level, keywords, excluded companies, listing age
+3. **Auto-discover jobs** — a daily cron job queries Google Jobs via SerpAPI, deduplicates results, and filters by your preferences
+4. **AI match scoring** — jobs are scored 0–100 in batches against your resume with written explanations
+5. **Track applications** — move jobs through a pipeline (applied → screening → interview → offer / rejected / ghosted)
+6. **Dashboard analytics** — response rate, weekly volume, status breakdown, and skill demand trends
+7. **Pipeline logs** — persistent daily logs of every search run (SerpAPI results, Gemini scoring, errors) viewable in-app
+8. **Automated backups** — daily database snapshots to Supabase Storage with 30-day retention
+9. **Demo mode** — read-only guest account with sample data for showcasing the app
 
 ## Tech Stack
 
@@ -17,12 +20,12 @@ A full-stack job search management tool that automatically finds job listings ma
 |---|---|
 | Framework | Next.js 16 (App Router, Server Components) |
 | Language | TypeScript |
-| Database | Supabase (PostgreSQL + Auth + Storage) |
-| AI | Google Gemini 2.5 Flash (resume parsing, job matching) |
+| Database | Supabase (PostgreSQL + Auth + Storage + RLS) |
+| AI | Google Gemini 3 Flash (resume parsing, batch job matching) |
 | Job Data | SerpAPI (Google Jobs engine) |
 | Styling | Tailwind CSS 4 + Shadcn UI |
 | Charts | Recharts |
-| Testing | Vitest (41 unit tests) |
+| Testing | Vitest (90 unit tests) |
 | Hosting | Vercel (with Cron for daily search) |
 
 ## Architecture
@@ -30,31 +33,107 @@ A full-stack job search management tool that automatically finds job listings ma
 ```
 src/
   app/
-    (app)/              # Authenticated pages (dashboard, resumes, inbox, applications)
-    api/                # REST endpoints (resumes, jobs, applications, stats, cron)
-    login/              # Magic link authentication
-  components/           # Resume card, upload dropzone, sidebar, Shadcn primitives
+    (app)/                # Authenticated pages
+      page.tsx            #   Dashboard with analytics
+      inbox/              #   Job inbox with filtering, pagination, bulk actions
+      resumes/            #   Resume management + search filter config
+      applications/       #   Application pipeline tracker
+      logs/               #   Pipeline log viewer (admin only)
+    api/
+      jobs/               #   CRUD + bulk update + manual search trigger
+      resumes/            #   Upload, delete, filter management
+      applications/       #   Application CRUD with status history
+      stats/              #   Dashboard analytics
+      logs/               #   Pipeline log list + detail
+      cron/daily-search/  #   Vercel Cron entrypoint
+      auth/               #   Supabase auth callback
+    login/                # Magic link authentication + demo login
+  components/             # Resume card, upload dropzone, sidebar, Shadcn primitives
   lib/
-    search/             # Core search pipeline
-      query-builder.ts  #   Resume data + filters -> optimized search queries
-      serpapi.ts         #   SerpAPI client + job normalization
-      matcher.ts         #   Gemini-powered match scoring (0-100)
-      execute.ts         #   Orchestrator (called by API route + cron)
-    resume-parser.ts    # Gemini-powered PDF resume extraction
-    supabase/           # Server + browser Supabase client helpers
-    types.ts            # Shared TypeScript interfaces
-  middleware.ts         # Auth guard (redirects unauthenticated users to /login)
+    search/               # Core search pipeline
+      query-builder.ts    #   Resume data + filters -> optimized search queries
+      serpapi.ts           #   SerpAPI client + pagination + job normalization
+      matcher.ts           #   Gemini batch scoring (5 jobs per API call)
+      execute.ts           #   Orchestrator with structured pipeline logging
+    resume-parser.ts      # Gemini-powered PDF resume extraction
+    pipeline-logger.ts    # Structured log collection, markdown formatting, storage persistence
+    db-backup.ts          # Daily database snapshots to Supabase Storage
+    supabase/             # Server, browser, and service role client helpers
+    date-utils.ts         # Timezone-safe date formatting
+    types.ts              # Shared TypeScript interfaces
+  middleware.ts           # Auth guard + demo account write protection
 ```
 
-### Key Design Decisions
+## Key Design Decisions
 
-- **Shared search executor** -- the cron job and the manual "Search Now" button both call the same `executeJobSearch` function directly, avoiding HTTP round-trips and auth issues
-- **Database-level status tracking** -- a PostgreSQL `BEFORE UPDATE` trigger automatically logs every application status change to a `status_history` table and updates `status_updated_at`, keeping the API layer simple
-- **URL-based deduplication** -- a unique index on `job_listings.url` prevents the same listing from appearing twice across searches
-- **Graceful AI fallbacks** -- if Gemini fails during match scoring, the job defaults to a score of 50 instead of being dropped
+- **Batch AI scoring** — multiple jobs are scored in a single Gemini API call (batches of 5) to stay within the free-tier rate limit of 20 requests/day while maintaining score quality
+- **Shared search executor** — the cron job and the "Search Now" button both call `executeJobSearch` directly, avoiding HTTP round-trips and auth issues
+- **Row Level Security** — Supabase RLS policies enforce per-user data isolation at the database level; the demo account's data is completely separate
+- **Structured pipeline logging** — search runs produce categorized markdown logs (SerpAPI results, filtering summaries, score distributions, errors) persisted to Supabase Storage with 14-day retention
+- **Database-level status tracking** — a PostgreSQL `BEFORE UPDATE` trigger logs every application status change to `status_history` and updates `status_updated_at`
+- **Batched deduplication** — URL-based dedup uses a single `IN` query per search instead of per-job queries, with a `Set` for O(1) cross-query tracking
+- **Graceful AI fallbacks** — if Gemini fails during scoring, jobs default to a score of 50 instead of being dropped
+- **Demo account isolation** — middleware blocks all non-GET requests for the demo user; pipeline logs and admin features are hidden from demo sessions
 
+## Daily Cron Pipeline
 
-Test coverage includes the query builder, SerpAPI client, Gemini resume parser, and AI match scorer.
+The daily cron job (`/api/cron/daily-search`) runs the following steps in order:
+
+1. **Database backup** — snapshot all critical tables to Supabase Storage
+2. **Prune old backups** — delete backup files older than 30 days
+3. **Clean up dismissed jobs** — remove jobs dismissed more than 3 months ago
+4. **Prune old pipeline logs** — delete log files older than 14 days
+5. **Execute job search** — query SerpAPI, deduplicate, batch-score with Gemini, insert new jobs
+6. **Persist pipeline logs** — write the run's log to Supabase Storage
+
+## Environment Variables
+
+| Variable | Purpose |
+|---|---|
+| `NEXT_PUBLIC_SUPABASE_URL` | Supabase project URL |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anonymous key (client-side) |
+| `SUPABASE_SERVICE_ROLE_KEY` | Supabase service role key (server-side, bypasses RLS) |
+| `GEMINI_API_KEY` | Google Gemini API key |
+| `SERPAPI_API_KEY` | SerpAPI key for Google Jobs searches |
+| `CRON_SECRET` | Secret for authenticating Vercel Cron requests |
+
+## Getting Started
+
+```bash
+# Install dependencies
+npm install
+
+# Copy environment template and fill in values
+cp .env.local.example .env.local
+
+# Run development server
+npm run dev
+
+# Run tests
+npm test
+```
+
+### Supabase Setup
+
+1. **Database schema** — Run `supabase/setup.sql` in the Supabase SQL Editor. This creates all tables, indexes, RLS policies, and the status change trigger.
+
+2. **Storage buckets** — Create three private buckets in Supabase Storage:
+
+   | Bucket | Purpose | Allowed MIME |
+   |--------|---------|--------------|
+   | `resumes` | PDF resume files | `application/pdf` |
+   | `pipeline-logs` | Daily search run logs | `text/markdown` |
+   | `db-backups` | Database snapshots | `application/json` |
+
+   For each bucket, add Storage policies granting `authenticated` users SELECT, INSERT, UPDATE, and DELETE access.
+
+3. **Authentication** — Enable email/password auth in Supabase Auth settings. Add `http://localhost:3000**` to the Redirect URLs list.
+
+4. **(Optional) Demo account** — To set up a read-only demo mode:
+   - Create a user with email `demo@guidepostai.app` in Supabase Auth
+   - Run `npx tsx scripts/seed-demo.ts` to populate sample data (this only affects the demo account via RLS)
+
+> **Note:** The `supabase/migrations/` directory contains the historical incremental migrations used during development. For fresh installs, use `supabase/setup.sql` instead.
 
 ## License
 
