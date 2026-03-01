@@ -20,6 +20,13 @@ export async function PATCH(request: Request) {
             );
         }
 
+        if (ids.length > 100) {
+            return NextResponse.json(
+                { error: "Cannot update more than 100 jobs at once" },
+                { status: 400 }
+            );
+        }
+
         const validStatuses = ["new", "saved", "dismissed", "applied"];
         if (!status || !validStatuses.includes(status)) {
             return NextResponse.json(

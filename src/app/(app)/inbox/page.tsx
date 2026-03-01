@@ -146,17 +146,15 @@ export default function InboxPage() {
             // Remove the job from the list if we're on a filtered tab
             // (e.g., dismissing on "New" tab should remove it from view)
             if (activeTab !== "all") {
-                const remaining = jobs.filter((j) => j.id !== jobId);
-                setJobs(remaining);
                 setTotalJobs((prev) => Math.max(0, prev - 1));
                 if (selectedJob?.id === jobId) setSelectedJob(null);
 
-                // If page is now empty, fall back
-                if (remaining.length === 0 && page > 1) {
-                    const newPage = page - 1;
-                    setPage(newPage);
-                    fetchJobs(activeTab, newPage);
-                }
+                // Refetch to fill the page from subsequent pages
+                const newTotal = totalJobs - 1;
+                const maxPage = Math.max(1, Math.ceil(newTotal / 20));
+                const targetPage = page > maxPage ? maxPage : page;
+                setPage(targetPage);
+                fetchJobs(activeTab, targetPage);
             } else {
                 setJobs((prev) =>
                     prev.map((j) => (j.id === jobId ? { ...j, status } : j))
@@ -225,16 +223,14 @@ export default function InboxPage() {
 
             // Remove from list on filtered tabs, update on "all" tab
             if (activeTab !== "all") {
-                const remaining = jobs.filter((j) => !selectedIds.has(j.id));
-                setJobs(remaining);
                 setTotalJobs((prev) => Math.max(0, prev - selectedIds.size));
 
-                // If page is now empty, fall back to previous page or refetch
-                if (remaining.length === 0) {
-                    const newPage = page > 1 ? page - 1 : 1;
-                    setPage(newPage);
-                    fetchJobs(activeTab, newPage);
-                }
+                // Refetch to fill the page from subsequent pages
+                const newTotal = totalJobs - selectedIds.size;
+                const maxPage = Math.max(1, Math.ceil(newTotal / 20));
+                const targetPage = page > maxPage ? maxPage : page;
+                setPage(targetPage);
+                fetchJobs(activeTab, targetPage);
             } else {
                 setJobs((prev) =>
                     prev.map((j) =>

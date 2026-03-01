@@ -33,7 +33,7 @@ interface SerpApiResponse {
  * Search for jobs using SerpAPI's Google Jobs engine.
  * Fetches up to MAX_PAGES pages (10 results each) to get more results.
  */
-const MAX_PAGES = 3;
+const MAX_PAGES = 5;
 
 export async function searchJobs(
     query: string,

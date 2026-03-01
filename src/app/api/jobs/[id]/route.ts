@@ -26,7 +26,15 @@ export async function PATCH(
             }
             updates.status = body.status;
         }
-        if (body.seen_at !== undefined) updates.seen_at = body.seen_at;
+        if (body.seen_at !== undefined) {
+            if (body.seen_at !== null && isNaN(Date.parse(body.seen_at))) {
+                return NextResponse.json(
+                    { error: "seen_at must be a valid ISO date string or null" },
+                    { status: 400 }
+                );
+            }
+            updates.seen_at = body.seen_at;
+        }
 
         if (Object.keys(updates).length === 0) {
             return NextResponse.json(
