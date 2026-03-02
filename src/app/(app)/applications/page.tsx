@@ -107,6 +107,17 @@ export default function ApplicationsPage() {
     async function handleSubmit(e: React.FormEvent) {
         e.preventDefault();
 
+        // Validate dates
+        const today = new Date().toISOString().split("T")[0];
+        if (form.applied_at > today) {
+            toast.error("Applied date cannot be in the future");
+            return;
+        }
+        if (form.heard_back_at && form.heard_back_at < form.applied_at) {
+            toast.error("Heard back date cannot be before the applied date");
+            return;
+        }
+
         const payload = {
             ...form,
             heard_back_at: form.heard_back_at || null,
@@ -278,7 +289,7 @@ export default function ApplicationsPage() {
                                     />
                                 </div>
                             </div>
-                            {form.status !== "applied" && (
+                            {form.status !== "applied" && form.status !== "ghosted" && (
                                 <div className="space-y-2">
                                     <Label htmlFor="heard_back_at">Date Heard Back</Label>
                                     <Input

@@ -26,6 +26,33 @@ export async function PATCH(
         if (body.applied_at !== undefined) updateData.applied_at = body.applied_at;
         if (body.heard_back_at !== undefined) updateData.heard_back_at = body.heard_back_at;
 
+        // Validate dates
+        const today = new Date().toISOString().split("T")[0];
+        if (body.applied_at && body.applied_at > today) {
+            return NextResponse.json(
+                { error: "Applied date cannot be in the future" },
+                { status: 400 }
+            );
+        }
+        if (body.heard_back_at) {
+            // Use the new applied_at if provided, otherwise look up the existing one
+            let appliedAt = body.applied_at;
+            if (!appliedAt) {
+                const { data: existing } = await supabase
+                    .from("applications")
+                    .select("applied_at")
+                    .eq("id", id)
+                    .single();
+                appliedAt = existing?.applied_at;
+            }
+            if (appliedAt && body.heard_back_at < appliedAt) {
+                return NextResponse.json(
+                    { error: "Heard back date cannot be before the applied date" },
+                    { status: 400 }
+                );
+            }
+        }
+
         const { data, error } = await supabase
             .from("applications")
             .update(updateData)
