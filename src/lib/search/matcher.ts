@@ -137,7 +137,7 @@ async function scoreBatchSingle(
     targetSeniority: string,
     logger?: PipelineLogger
 ): Promise<MatchResult[]> {
-    const model = genAI.getGenerativeModel({ model: "gemini-3-flash" });
+    const model = genAI.getGenerativeModel({ model: "gemini-3-flash-preview" });
 
     // Build the job listings section
     const jobListingsText = jobs
