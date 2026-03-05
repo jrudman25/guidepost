@@ -1,8 +1,6 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { generateWithFallback } from "@/lib/gemini";
 import type { ParsedResumeData } from "@/lib/types";
 import type { PipelineLogger } from "@/lib/pipeline-logger";
-
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
 
 export interface MatchResult {
     score: number;
@@ -88,8 +86,6 @@ export async function scoreJobMatch(
     resume: ParsedResumeData,
     targetSeniority: string = "any"
 ): Promise<MatchResult> {
-    const model = genAI.getGenerativeModel({ model: "gemini-3-flash-preview" });
-
     const prompt = SINGLE_MATCH_PROMPT
         .replace("{titles}", resume.job_titles.join(", "))
         .replace("{skills}", resume.skills.join(", "))
@@ -101,16 +97,7 @@ export async function scoreJobMatch(
         .replace("{description}", (job.description || "No description available").substring(0, 2000));
 
     try {
-        const timeoutPromise = new Promise<{ response: { text: () => string } }>((_, reject) =>
-            setTimeout(() => reject(new Error("Gemini AI API timeout after 15 seconds")), 15000)
-        );
-
-        const result = await Promise.race([
-            model.generateContent(prompt),
-            timeoutPromise
-        ]);
-
-        const text = result.response.text();
+        const text = await generateWithFallback(prompt, 15000);
         const cleaned = text.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
         const parsed = JSON.parse(cleaned) as MatchResult;
 
@@ -137,8 +124,6 @@ async function scoreBatchSingle(
     targetSeniority: string,
     logger?: PipelineLogger
 ): Promise<MatchResult[]> {
-    const model = genAI.getGenerativeModel({ model: "gemini-3-flash-preview" });
-
     // Build the job listings section
     const jobListingsText = jobs
         .map((job, i) => {
@@ -156,16 +141,7 @@ async function scoreBatchSingle(
         .replace("{jobListings}", jobListingsText);
 
     try {
-        const timeoutPromise = new Promise<{ response: { text: () => string } }>((_, reject) =>
-            setTimeout(() => reject(new Error("Gemini AI API timeout after 30 seconds")), 30000)
-        );
-
-        const result = await Promise.race([
-            model.generateContent(prompt),
-            timeoutPromise
-        ]);
-
-        const text = result.response.text();
+        const text = await generateWithFallback(prompt, 60000);
         const cleaned = text.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
         const parsed = JSON.parse(cleaned) as MatchResult[];
 

@@ -1,7 +1,5 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { generateWithFallback } from "@/lib/gemini";
 import type { ParsedResumeData } from "@/lib/types";
-
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
 
 const RESUME_PARSE_PROMPT = `You are a resume parser. Analyze the following resume text and extract structured information.
 
@@ -27,10 +25,7 @@ Resume text:
 `;
 
 export async function parseResume(text: string): Promise<ParsedResumeData> {
-    const model = genAI.getGenerativeModel({ model: "gemini-3-flash-preview" });
-
-    const result = await model.generateContent(RESUME_PARSE_PROMPT + text);
-    const response = result.response.text();
+    const response = await generateWithFallback(RESUME_PARSE_PROMPT + text, 15000);
 
     // Strip any markdown code block formatting if present
     const cleaned = response

@@ -22,6 +22,7 @@ import {
     CheckSquare,
     Square,
     Trash2,
+    Inbox,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn, handleApiError, toastApiError } from "@/lib/utils";
@@ -140,7 +141,11 @@ export default function InboxPage() {
                 window.dispatchEvent(new CustomEvent("unseenCountChanged", { detail: -1 }));
             }
             if (job?.status === "new" && status !== "new") {
+                // Leaving inbox
                 window.dispatchEvent(new CustomEvent("inboxTotalChanged", { detail: -1 }));
+            } else if (job?.status !== "new" && status === "new") {
+                // Returning to inbox
+                window.dispatchEvent(new CustomEvent("inboxTotalChanged", { detail: 1 }));
             }
 
             // Remove the job from the list if we're on a filtered tab
@@ -148,6 +153,11 @@ export default function InboxPage() {
             if (activeTab !== "all") {
                 setTotalJobs((prev) => Math.max(0, prev - 1));
                 if (selectedJob?.id === jobId) setSelectedJob(null);
+                setSelectedIds((prev) => {
+                    const next = new Set(prev);
+                    next.delete(jobId);
+                    return next;
+                });
 
                 // Refetch to fill the page from subsequent pages
                 const newTotal = totalJobs - 1;
@@ -168,6 +178,7 @@ export default function InboxPage() {
                 saved: "Job saved",
                 dismissed: "Job dismissed",
                 applied: "Marked as applied",
+                new: "Moved back to inbox",
             };
             toast.success(labels[status] || "Status updated");
         } catch (e) {
@@ -218,7 +229,18 @@ export default function InboxPage() {
                 (j) => selectedIds.has(j.id) && j.status === "new"
             ).length;
             if (newToOtherCount > 0 && status !== "new") {
+                // Leaving inbox
                 window.dispatchEvent(new CustomEvent("inboxTotalChanged", { detail: -newToOtherCount }));
+            }
+
+            // Count non-new jobs returning to inbox
+            if (status === "new") {
+                const otherToNewCount = jobs.filter(
+                    (j) => selectedIds.has(j.id) && j.status !== "new"
+                ).length;
+                if (otherToNewCount > 0) {
+                    window.dispatchEvent(new CustomEvent("inboxTotalChanged", { detail: otherToNewCount }));
+                }
             }
 
             // Remove from list on filtered tabs, update on "all" tab
@@ -243,7 +265,13 @@ export default function InboxPage() {
                 setSelectedJob(null);
             }
 
-            toast.success(`${selectedIds.size} job${selectedIds.size > 1 ? "s" : ""} ${status}`);
+            const bulkLabels: Record<string, string> = {
+                saved: "saved",
+                dismissed: "dismissed",
+                applied: "marked as applied",
+                new: "moved back to inbox",
+            };
+            toast.success(`${selectedIds.size} job${selectedIds.size > 1 ? "s" : ""} ${bulkLabels[status] || "updated"}`);
             setSelectedIds(new Set());
         } catch (e) {
             toastApiError(e, "Failed to update jobs");
@@ -330,11 +358,14 @@ export default function InboxPage() {
                                         variant="outline"
                                         size="sm"
                                         disabled={bulkUpdating}
-                                        onClick={() => bulkUpdateStatus("dismissed")}
+                                        onClick={() => bulkUpdateStatus(activeTab === "dismissed" ? "new" : "dismissed")}
                                         className="h-7 text-xs"
                                     >
-                                        <Trash2 className="mr-1 h-3 w-3" />
-                                        Dismiss
+                                        {activeTab === "dismissed" ? (
+                                            <><Inbox className="mr-1 h-3 w-3" />Back to Inbox</>
+                                        ) : (
+                                            <><Trash2 className="mr-1 h-3 w-3" />Dismiss</>
+                                        )}
                                     </Button>
                                     <Button
                                         variant="outline"
@@ -352,8 +383,9 @@ export default function InboxPage() {
                         {jobs.map((job) => (
                             <div
                                 key={job.id}
+                                onClick={() => selectJob(job)}
                                 className={cn(
-                                    "flex items-start gap-2 rounded-xl border border-border bg-card p-4 transition-colors hover:border-primary/50",
+                                    "flex items-start gap-2 rounded-xl border border-border bg-card p-4 transition-colors hover:border-primary/50 cursor-pointer",
                                     selectedJob?.id === job.id && "border-primary ring-1 ring-primary"
                                 )}
                             >
@@ -378,8 +410,7 @@ export default function InboxPage() {
                                     )}
                                 </button>
                                 {/* Job card content */}
-                                <button
-                                    onClick={() => selectJob(job)}
+                                <div
                                     className="min-w-0 flex-1 text-left"
                                 >
                                     <div className="flex items-start justify-between gap-3">
@@ -420,7 +451,7 @@ export default function InboxPage() {
                                             {job.match_score ?? "\u2014"}
                                         </Badge>
                                     </div>
-                                </button>
+                                </div>
                             </div>
                         ))}
                         <PaginationControls
@@ -511,7 +542,7 @@ export default function InboxPage() {
                                         Mark Applied
                                     </Button>
                                 )}
-                                {selectedJob.status !== "dismissed" && (
+                                {selectedJob.status !== "dismissed" ? (
                                     <Button
                                         variant="ghost"
                                         size="sm"
@@ -519,6 +550,15 @@ export default function InboxPage() {
                                     >
                                         <XIcon className="mr-1 h-4 w-4" />
                                         Dismiss
+                                    </Button>
+                                ) : (
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => updateJobStatus(selectedJob.id, "new")}
+                                    >
+                                        <Inbox className="mr-1 h-4 w-4" />
+                                        Back to Inbox
                                     </Button>
                                 )}
                                 {selectedJob.url && (

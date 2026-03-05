@@ -403,6 +403,11 @@ export default function ApplicationsPage() {
                                             {STATUS_OPTIONS.find((s) => s.value === app.status)
                                                 ?.label}
                                         </Badge>
+                                        {app.url && (
+                                            <a href={app.url} target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-foreground transition-colors">
+                                                <ExternalLink className="h-3.5 w-3.5" />
+                                            </a>
+                                        )}
                                     </div>
                                     <div className="mt-1 flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
                                         <span className="flex items-center gap-1">
@@ -462,13 +467,7 @@ export default function ApplicationsPage() {
                                         <Pencil className="h-4 w-4" />
                                     </Button>
 
-                                    {app.url && (
-                                        <Button variant="ghost" size="icon" asChild>
-                                            <a href={app.url} target="_blank" rel="noopener noreferrer">
-                                                <ExternalLink className="h-4 w-4" />
-                                            </a>
-                                        </Button>
-                                    )}
+
 
                                     <Button
                                         variant="ghost"
