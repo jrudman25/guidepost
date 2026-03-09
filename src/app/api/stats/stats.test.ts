@@ -274,3 +274,59 @@ describe("weeklyApplications", () => {
         expect(totalInBuckets).toBe(1);
     });
 });
+
+// ---------------------------------------------------------------------------
+// rejectionFunnel
+// ---------------------------------------------------------------------------
+
+describe("rejectionFunnel", () => {
+    it("groups rejected/ghosted apps by furthest_stage", () => {
+        const apps = [
+            makeApp({ status: "rejected", furthest_stage: "applied" }),
+            makeApp({ status: "rejected", furthest_stage: "screening" }),
+            makeApp({ status: "rejected", furthest_stage: "screening" }),
+            makeApp({ status: "ghosted", furthest_stage: "interview" }),
+            makeApp({ status: "rejected", furthest_stage: "offer" }),
+        ];
+
+        const result = computeStats(apps, NOW);
+        expect(result.rejectionFunnel).toEqual({
+            applied: 1,
+            screening: 2,
+            interview: 1,
+            offer: 1,
+        });
+    });
+
+    it("defaults to applied when furthest_stage is missing", () => {
+        const apps = [
+            makeApp({ status: "rejected" }),
+            makeApp({ status: "ghosted" }),
+        ];
+
+        const result = computeStats(apps, NOW);
+        expect(result.rejectionFunnel).toEqual({
+            applied: 2,
+            screening: 0,
+            interview: 0,
+            offer: 0,
+        });
+    });
+
+    it("ignores non-terminal statuses", () => {
+        const apps = [
+            makeApp({ status: "applied", furthest_stage: "applied" }),
+            makeApp({ status: "screening", furthest_stage: "screening" }),
+            makeApp({ status: "interview", furthest_stage: "interview" }),
+            makeApp({ status: "offer", furthest_stage: "offer" }),
+        ];
+
+        const result = computeStats(apps, NOW);
+        expect(result.rejectionFunnel).toEqual({
+            applied: 0,
+            screening: 0,
+            interview: 0,
+            offer: 0,
+        });
+    });
+});

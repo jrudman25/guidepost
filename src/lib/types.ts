@@ -66,6 +66,7 @@ export interface Application {
     notes: string | null;
     url: string | null;
     heard_back_at: string | null;
+    furthest_stage: "applied" | "screening" | "interview" | "offer";
 }
 
 export type ApplicationStatus =

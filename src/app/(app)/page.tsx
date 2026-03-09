@@ -37,6 +37,7 @@ interface Stats {
     resumeSkills: string[];
     totalApplications: number;
     userName?: string;
+    rejectionFunnel?: Record<string, number>;
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -347,6 +348,42 @@ export default function DashboardPage() {
                     )}
                 </div>
             </div>
+
+            {/* Rejection Funnel */}
+            {stats.rejectionFunnel && Object.values(stats.rejectionFunnel).some((v) => v > 0) && (
+                <div className="rounded-xl border border-border bg-card p-6">
+                    <h3 className="mb-1 font-semibold">Rejection Funnel</h3>
+                    <p className="mb-4 text-sm text-muted-foreground">
+                        Where rejected &amp; ghosted applications dropped off
+                    </p>
+                    <div className="space-y-3">
+                        {["applied", "screening", "interview", "offer"].map((stage) => {
+                            const count = stats.rejectionFunnel?.[stage] || 0;
+                            const total = Object.values(stats.rejectionFunnel!).reduce((a, b) => a + b, 0);
+                            const pct = total > 0 ? (count / total) * 100 : 0;
+                            return (
+                                <div key={stage} className="flex items-center gap-3">
+                                    <span className="w-24 text-sm text-muted-foreground">
+                                        {STATUS_LABELS[stage] || stage}
+                                    </span>
+                                    <div className="flex-1 h-6 rounded-full bg-muted/50 overflow-hidden">
+                                        <div
+                                            className="h-full rounded-full transition-all duration-500"
+                                            style={{
+                                                width: `${Math.max(pct, count > 0 ? 4 : 0)}%`,
+                                                backgroundColor: STATUS_COLORS[stage] || "#71717a",
+                                            }}
+                                        />
+                                    </div>
+                                    <span className="w-16 text-right text-sm font-medium">
+                                        {count > 0 ? `${count} (${Math.round(pct)}%)` : "—"}
+                                    </span>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+            )}
 
             {/* Resume skills */}
             {stats.resumeSkills.length > 0 && (

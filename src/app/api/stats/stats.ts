@@ -9,6 +9,7 @@ export interface StatsApplication {
     status: string;
     status_updated_at: string;
     heard_back_at: string | null;
+    furthest_stage?: string;
 }
 
 export interface StatsResult {
@@ -19,6 +20,7 @@ export interface StatsResult {
     statusBreakdown: Record<string, number>;
     weeklyApplications: { week: string; count: number }[];
     totalApplications: number;
+    rejectionFunnel: Record<string, number>;
 }
 
 /**
@@ -111,6 +113,20 @@ export function computeStats(
         });
     }
 
+    // Rejection funnel: group rejected/ghosted by their furthest_stage
+    const rejectionFunnel: Record<string, number> = {
+        applied: 0,
+        screening: 0,
+        interview: 0,
+        offer: 0,
+    };
+    apps.forEach((a) => {
+        if (a.status === "rejected" || a.status === "ghosted") {
+            const stage = a.furthest_stage || "applied";
+            rejectionFunnel[stage] = (rejectionFunnel[stage] || 0) + 1;
+        }
+    });
+
     return {
         applicationsThisWeek,
         applicationsThisMonth,
@@ -119,5 +135,6 @@ export function computeStats(
         statusBreakdown,
         weeklyApplications,
         totalApplications: totalApps,
+        rejectionFunnel,
     };
 }

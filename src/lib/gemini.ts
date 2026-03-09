@@ -3,7 +3,8 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
 
 const PRIMARY_MODEL = "gemini-3-flash-preview";
-const FALLBACK_MODEL = "gemini-2.5-flash";
+const SECONDARY_MODEL = "gemini-2.5-flash";
+const FALLBACK_MODEL = "gemini-3.1-flash-lite-preview";
 
 /**
  * Generate content with automatic model fallback.
@@ -14,7 +15,7 @@ export async function generateWithFallback(
     prompt: string,
     timeoutMs: number = 15000
 ): Promise<string> {
-    const models = [PRIMARY_MODEL, FALLBACK_MODEL];
+    const models = [PRIMARY_MODEL, SECONDARY_MODEL, FALLBACK_MODEL];
 
     for (let i = 0; i < models.length; i++) {
         const modelName = models[i];

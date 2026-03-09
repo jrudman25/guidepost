@@ -55,6 +55,20 @@ const STATUS_COLORS: Record<ApplicationStatus, string> = {
     ghosted: "bg-zinc-500/15 text-zinc-400 border-zinc-500/30",
 };
 
+const STAGE_OPTIONS = [
+    { value: "applied", label: "Applied" },
+    { value: "screening", label: "Screening" },
+    { value: "interview", label: "Interview" },
+    { value: "offer", label: "Offer" },
+];
+
+const STAGE_LABELS: Record<string, string> = {
+    applied: "Applied",
+    screening: "Screening",
+    interview: "Interview",
+    offer: "Offer",
+};
+
 export default function ApplicationsPage() {
     const [applications, setApplications] = useState<Application[]>([]);
     const [page, setPage] = useState(1);
@@ -74,6 +88,7 @@ export default function ApplicationsPage() {
         notes: "",
         url: "",
         heard_back_at: "",
+        furthest_stage: "applied" as Application["furthest_stage"],
     };
 
     // Form state (used for both add and edit)
@@ -164,6 +179,7 @@ export default function ApplicationsPage() {
             notes: app.notes || "",
             url: app.url || "",
             heard_back_at: app.heard_back_at ? toLocalDateString(app.heard_back_at) : "",
+            furthest_stage: app.furthest_stage || "applied",
         });
         setDialogOpen(true);
     }
@@ -322,6 +338,28 @@ export default function ApplicationsPage() {
                                     </SelectContent>
                                 </Select>
                             </div>
+                            {editingApp && (form.status === "rejected" || form.status === "ghosted") && (
+                                <div className="space-y-2">
+                                    <Label>Furthest Stage Reached</Label>
+                                    <Select
+                                        value={form.furthest_stage}
+                                        onValueChange={(v) =>
+                                            setForm((p) => ({ ...p, furthest_stage: v as Application["furthest_stage"] }))
+                                        }
+                                    >
+                                        <SelectTrigger>
+                                            <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {STAGE_OPTIONS.map((opt) => (
+                                                <SelectItem key={opt.value} value={opt.value}>
+                                                    {opt.label}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                            )}
                             <div className="space-y-2">
                                 <Label htmlFor="url">Job Posting URL</Label>
                                 <Input
@@ -407,6 +445,11 @@ export default function ApplicationsPage() {
                                             <a href={app.url} target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-foreground transition-colors">
                                                 <ExternalLink className="h-3.5 w-3.5" />
                                             </a>
+                                        )}
+                                        {(app.status === "rejected" || app.status === "ghosted") && app.furthest_stage && app.furthest_stage !== "applied" && (
+                                            <span className="text-xs text-muted-foreground">
+                                                after {STAGE_LABELS[app.furthest_stage]}
+                                            </span>
                                         )}
                                     </div>
                                     <div className="mt-1 flex flex-wrap items-center gap-4 text-sm text-muted-foreground">

@@ -74,7 +74,8 @@ create table if not exists public.applications (
   status_updated_at timestamptz default now() not null,
   heard_back_at timestamptz default null,
   notes text,
-  url text
+  url text,
+  furthest_stage text default 'applied' not null check (furthest_stage in ('applied', 'screening', 'interview', 'offer'))
 );
 
 create index if not exists applications_status_idx on public.applications(status);
@@ -99,11 +100,22 @@ create index if not exists status_history_app_idx on public.status_history(appli
 -- ============================================
 create or replace function log_application_status_change()
 returns trigger as $$
+declare
+  stage_order constant text[] := array['applied', 'screening', 'interview', 'offer'];
+  new_stage_idx int;
+  current_stage_idx int;
 begin
   if OLD.status is distinct from NEW.status then
     insert into public.status_history (application_id, from_status, to_status, user_id)
     values (NEW.id, OLD.status, NEW.status, NEW.user_id);
     NEW.status_updated_at = now();
+
+    -- Auto-update furthest_stage if new status is a higher progression stage
+    new_stage_idx := array_position(stage_order, NEW.status);
+    current_stage_idx := array_position(stage_order, NEW.furthest_stage);
+    if new_stage_idx is not null and (current_stage_idx is null or new_stage_idx > current_stage_idx) then
+      NEW.furthest_stage = NEW.status;
+    end if;
   end if;
   return NEW;
 end;

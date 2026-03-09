@@ -25,6 +25,7 @@ export async function PATCH(
         if (body.company !== undefined) updateData.company = body.company;
         if (body.applied_at !== undefined) updateData.applied_at = body.applied_at;
         if (body.heard_back_at !== undefined) updateData.heard_back_at = body.heard_back_at;
+        if (body.furthest_stage !== undefined) updateData.furthest_stage = body.furthest_stage;
 
         // Validate dates
         const today = new Date().toISOString().split("T")[0];

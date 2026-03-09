@@ -118,6 +118,19 @@ async function seed() {
             if (heardBackDate > now) heardBackDate = now;
         }
 
+        // Determine furthest_stage for realistic data
+        let furthestStage = "applied";
+        if (status === "screening") furthestStage = "screening";
+        else if (status === "interview") furthestStage = "interview";
+        else if (status === "offer") furthestStage = "offer";
+        else if (status === "rejected" || status === "ghosted") {
+            // Randomize how far they got before rejection
+            const fr = Math.random();
+            if (fr > 0.7) furthestStage = "interview";
+            else if (fr > 0.4) furthestStage = "screening";
+            // else stays "applied"
+        }
+
         apps.push({
             user_id: userId,
             job_title: `Software Engineer ${i + 1}`,
@@ -126,7 +139,8 @@ async function seed() {
             status: status,
             status_updated_at: (heardBackDate || appliedDate).toISOString(),
             applied_via: ["LinkedIn", "Company Site", "Wellfound", "Referral"][Math.floor(Math.random() * 4)],
-            heard_back_at: heardBackDate ? heardBackDate.toISOString().split("T")[0] : null
+            heard_back_at: heardBackDate ? heardBackDate.toISOString().split("T")[0] : null,
+            furthest_stage: furthestStage
         });
     }
 

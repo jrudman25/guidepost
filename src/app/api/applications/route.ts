@@ -76,6 +76,7 @@ export async function POST(request: Request) {
                 notes: body.notes || null,
                 url: body.url || null,
                 heard_back_at: body.heard_back_at || null,
+                furthest_stage: body.furthest_stage || "applied",
             })
             .select()
             .single();
