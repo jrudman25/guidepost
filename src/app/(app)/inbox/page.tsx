@@ -1,11 +1,12 @@
 ﻿"use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import Link from "next/link";
 import type { JobListing } from "@/lib/types";
 import { parseLocalDate, toLocalDateString } from "@/lib/date-utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
     Loader2,
@@ -47,6 +48,9 @@ export default function InboxPage() {
     const [selectedJob, setSelectedJob] = useState<JobListing | null>(null);
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
     const [bulkUpdating, setBulkUpdating] = useState(false);
+    const [searchTerm, setSearchTerm] = useState("");
+    const [debouncedSearch, setDebouncedSearch] = useState("");
+    const debounceRef = useRef<NodeJS.Timeout | null>(null);
 
     async function markAsSeen(job: JobListing) {
         if (job.seen_at) return; // already seen
@@ -70,15 +74,15 @@ export default function InboxPage() {
         markAsSeen(job);
     }
 
-    const fetchJobs = useCallback(async (status?: string, currentPage = 1) => {
+    const fetchJobs = useCallback(async (status?: string, currentPage = 1, search = "") => {
         setIsFetching(true);
         try {
             const limit = 20;
             const offset = (currentPage - 1) * limit;
-            const url = status
-                ? `/api/jobs?status=${status}&limit=${limit}&offset=${offset}`
-                : `/api/jobs?limit=${limit}&offset=${offset}`;
-            const response = await fetch(url);
+            const params = new URLSearchParams({ limit: String(limit), offset: String(offset) });
+            if (status) params.set("status", status);
+            if (search) params.set("search", search);
+            const response = await fetch(`/api/jobs?${params}`);
             const data = await response.json();
             setJobs(data.jobs || []);
             setTotalJobs(data.total || 0);
@@ -91,8 +95,18 @@ export default function InboxPage() {
     }, []);
 
     useEffect(() => {
-        fetchJobs(activeTab === "all" ? undefined : activeTab, page);
-    }, [activeTab, fetchJobs, page]);
+        fetchJobs(activeTab === "all" ? undefined : activeTab, page, debouncedSearch);
+    }, [activeTab, fetchJobs, page, debouncedSearch]);
+
+    // Debounce search input
+    function handleSearchChange(value: string) {
+        setSearchTerm(value);
+        if (debounceRef.current) clearTimeout(debounceRef.current);
+        debounceRef.current = setTimeout(() => {
+            setDebouncedSearch(value);
+            setPage(1);
+        }, 300);
+    }
 
     async function triggerSearch() {
         setSearching(true);
@@ -318,6 +332,17 @@ export default function InboxPage() {
                     <TabsTrigger value="all">All</TabsTrigger>
                 </TabsList>
             </Tabs>
+
+            {/* Search bar */}
+            <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                    placeholder="Search by title, company, or location..."
+                    value={searchTerm}
+                    onChange={(e) => handleSearchChange(e.target.value)}
+                    className="pl-9"
+                />
+            </div>
 
             {loading ? (
                 <div className="flex items-center justify-center py-12">

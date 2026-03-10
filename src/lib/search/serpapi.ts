@@ -1,4 +1,5 @@
 import { buildSerpApiParams } from "./query-builder";
+import { detectRemote } from "./location-filter";
 import type { SearchFilter } from "@/lib/types";
 
 export interface SerpApiJob {
@@ -114,7 +115,7 @@ export function normalizeJob(
         url: applyLink,
         source: "google_jobs",
         posted_at: null, // SerpAPI gives relative times like "3 days ago", not ISO dates
-        is_remote: job.detected_extensions?.work_from_home || false,
+        is_remote: detectRemote(job),
         salary_info: job.detected_extensions?.salary || null,
     };
 }

@@ -8,11 +8,12 @@ A full-stack job search management tool that automatically finds job listings ma
 2. **Configure search filters** — location, remote preference, seniority level, keywords, excluded companies, listing age
 3. **Auto-discover jobs** — a daily cron job queries Google Jobs via SerpAPI, deduplicates results, and filters by your preferences
 4. **AI match scoring** — jobs are scored 0–100 in batches against your resume with written explanations
-5. **Track applications** — move jobs through a pipeline (applied → screening → interview → offer / rejected / ghosted)
-6. **Dashboard analytics** — response rate, weekly volume, status breakdown, and skill demand trends
-7. **Pipeline logs** — persistent daily logs of every search run (SerpAPI results, Gemini scoring, errors) viewable in-app
-8. **Automated backups** — daily database snapshots to Supabase Storage with 30-day retention
-9. **Demo mode** — read-only guest account with sample data for showcasing the app
+5. **Track applications** — move jobs through a pipeline (applied → screening → interview → offer / rejected / ghosted) with "furthest stage reached" tracking for granular rejection analytics
+6. **Search & filter** — debounced search bars on both the job inbox and applications pages, combined with tab/status filters
+7. **Dashboard analytics** — response rate, weekly volume, status breakdown, rejection funnel by pipeline stage, and skill demand trends
+8. **Pipeline logs** — persistent daily logs of every search run (SerpAPI results, Gemini scoring, errors) viewable in-app
+9. **Automated backups** — daily database snapshots to Supabase Storage with 30-day retention
+10. **Demo mode** — read-only guest account with sample data for showcasing the app
 
 ## Tech Stack
 
@@ -21,11 +22,11 @@ A full-stack job search management tool that automatically finds job listings ma
 | Framework | Next.js 16 (App Router, Server Components) |
 | Language | TypeScript |
 | Database | Supabase (PostgreSQL + Auth + Storage + RLS) |
-| AI | Google Gemini 3 Flash (resume parsing, batch job matching) |
+| AI | Google Gemini (3 Flash → 2.5 Flash → 3.1 Flash Lite fallback chain) |
 | Job Data | SerpAPI (Google Jobs engine) |
 | Styling | Tailwind CSS 4 + Shadcn UI |
 | Charts | Recharts |
-| Testing | Vitest (90 unit tests) |
+| Testing | Vitest (115 unit tests) |
 | Hosting | Vercel (with Cron for daily search) |
 
 ## Architecture
@@ -34,10 +35,10 @@ A full-stack job search management tool that automatically finds job listings ma
 src/
   app/
     (app)/                # Authenticated pages
-      page.tsx            #   Dashboard with analytics
-      inbox/              #   Job inbox with filtering, pagination, bulk actions
+      page.tsx            #   Dashboard with analytics + rejection funnel
+      inbox/              #   Job inbox with search, filtering, pagination, bulk actions
       resumes/            #   Resume management + search filter config
-      applications/       #   Application pipeline tracker
+      applications/       #   Application pipeline tracker with search
       logs/               #   Pipeline log viewer (admin only)
     api/
       jobs/               #   CRUD + bulk update + manual search trigger
@@ -54,8 +55,10 @@ src/
       query-builder.ts    #   Resume data + filters -> optimized search queries
       serpapi.ts           #   SerpAPI client + pagination + job normalization
       matcher.ts           #   Gemini batch scoring (5 jobs per API call)
+      location-filter.ts   #   Post-fetch geographic filter + remote keyword detection
       execute.ts           #   Orchestrator with structured pipeline logging
     resume-parser.ts      # Gemini-powered PDF resume extraction
+    gemini.ts             # Shared Gemini client with automatic model fallback
     pipeline-logger.ts    # Structured log collection, markdown formatting, storage persistence
     db-backup.ts          # Daily database snapshots to Supabase Storage
     supabase/             # Server, browser, and service role client helpers
@@ -70,9 +73,9 @@ src/
 - **Shared search executor** — the cron job and the "Search Now" button both call `executeJobSearch` directly, avoiding HTTP round-trips and auth issues
 - **Row Level Security** — Supabase RLS policies enforce per-user data isolation at the database level; the demo account's data is completely separate
 - **Structured pipeline logging** — search runs produce categorized markdown logs (SerpAPI results, filtering summaries, score distributions, errors) persisted to Supabase Storage with 14-day retention
-- **Database-level status tracking** — a PostgreSQL `BEFORE UPDATE` trigger logs every application status change to `status_history` and updates `status_updated_at`
+- **Database-level status tracking** — a PostgreSQL `BEFORE UPDATE` trigger logs every application status change to `status_history`, updates `status_updated_at`, and auto-advances `furthest_stage` (the highest pipeline stage reached, used for rejection funnel analytics)
 - **Batched deduplication** — URL-based dedup uses a single `IN` query per search instead of per-job queries, with a `Set` for O(1) cross-query tracking
-- **Graceful AI fallbacks** — if Gemini fails during scoring, jobs default to a score of 50 instead of being dropped
+- **Graceful AI fallbacks** — a three-model fallback chain (Gemini 3 Flash → 2.5 Flash → 3.1 Flash Lite) ensures API calls succeed even during outages; if all models fail during scoring, jobs default to a score of 50
 - **Demo account isolation** — middleware blocks all non-GET requests for the demo user; pipeline logs and admin features are hidden from demo sessions
 
 ## Daily Cron Pipeline
