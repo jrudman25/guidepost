@@ -25,7 +25,7 @@ Resume text:
 `;
 
 export async function parseResume(text: string): Promise<ParsedResumeData> {
-    const response = await generateWithFallback(RESUME_PARSE_PROMPT + text, 15000);
+    const { text: response } = await generateWithFallback(RESUME_PARSE_PROMPT + text, 15000);
 
     // Strip any markdown code block formatting if present
     const cleaned = response

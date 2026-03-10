@@ -10,11 +10,12 @@ const FALLBACK_MODEL = "gemini-3.1-flash-lite-preview";
  * Generate content with automatic model fallback.
  * If the primary model returns a 503 (overloaded), retries
  * with the fallback model.
+ * Returns the generated text and the model name that was used.
  */
 export async function generateWithFallback(
     prompt: string,
     timeoutMs: number = 15000
-): Promise<string> {
+): Promise<{ text: string; model: string }> {
     const models = [PRIMARY_MODEL, SECONDARY_MODEL, FALLBACK_MODEL];
 
     for (let i = 0; i < models.length; i++) {
@@ -33,7 +34,7 @@ export async function generateWithFallback(
 
             const text = result.response.text();
 
-            return text;
+            return { text, model: modelName };
         } catch (error) {
             const msg = error instanceof Error ? error.message : String(error);
             const is503 = msg.includes("503") || msg.includes("overloaded") || msg.includes("unavailable");

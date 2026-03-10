@@ -61,7 +61,9 @@ export default function LogsPage() {
     }
 
     function isToday(dateStr: string) {
-        return dateStr === new Date().toISOString().split("T")[0];
+        const now = new Date();
+        const localToday = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+        return dateStr === localToday;
     }
 
     if (loading) {
