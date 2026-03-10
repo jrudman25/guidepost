@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { buildSearchQueries } from "@/lib/search/query-builder";
 import { searchJobs, normalizeJob } from "@/lib/search/serpapi";
+import { isLocationCompatible } from "@/lib/search/location-filter";
 import { scoreJobBatch } from "@/lib/search/matcher";
 import { PipelineLogger } from "@/lib/pipeline-logger";
 import type { ParsedResumeData, SearchFilter } from "@/lib/types";
@@ -93,6 +94,7 @@ export async function executeJobSearch(
         let skippedNoUrl = 0;
         let skippedDuplicate = 0;
         let skippedRemote = 0;
+        let skippedLocation = 0;
 
         for (const queryStr of queries) {
             try {
@@ -146,6 +148,12 @@ export async function executeJobSearch(
                         continue;
                     }
 
+                    // Filter by location compatibility (non-remote jobs from distant locations)
+                    if (!isLocationCompatible(job, searchFilters.location, searchFilters.remote_preference || "any")) {
+                        skippedLocation++;
+                        continue;
+                    }
+
                     existingUrls.add(normalized.url);
 
                     candidates.push({
@@ -165,6 +173,7 @@ export async function executeJobSearch(
         if (skippedExcluded > 0) logger.info("filtering", `Skipped ${skippedExcluded} excluded companies`);
         if (skippedNoUrl > 0) logger.warn("filtering", `Skipped ${skippedNoUrl} jobs with no URL`);
         if (skippedRemote > 0) logger.info("filtering", `Skipped ${skippedRemote} non-remote jobs (remote preference)`);
+        if (skippedLocation > 0) logger.info("filtering", `Skipped ${skippedLocation} out-of-area jobs (location filter)`);
         logger.info("filtering", `${candidates.length} new candidates to score`);
 
         if (candidates.length === 0) {

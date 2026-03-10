@@ -23,6 +23,11 @@ export async function GET(request: Request) {
             query = query.eq("status", status);
         }
 
+        const search = searchParams.get("search");
+        if (search) {
+            query = query.or(`job_title.ilike.%${search}%,company.ilike.%${search}%,notes.ilike.%${search}%`);
+        }
+
         const { data, count, error } = await query;
 
         if (error) {

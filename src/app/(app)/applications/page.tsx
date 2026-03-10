@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import type { Application, ApplicationStatus } from "@/lib/types";
 import { parseLocalDate, daysSince, toLocalDateString } from "@/lib/date-utils";
 import { Button } from "@/components/ui/button";
@@ -32,6 +32,7 @@ import {
     Briefcase,
     Pencil,
     Reply,
+    Search,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn, handleApiError, toastApiError } from "@/lib/utils";
@@ -78,6 +79,9 @@ export default function ApplicationsPage() {
     const [dialogOpen, setDialogOpen] = useState(false);
     const [filterStatus, setFilterStatus] = useState<string>("all");
     const [editingApp, setEditingApp] = useState<Application | null>(null);
+    const [searchTerm, setSearchTerm] = useState("");
+    const [debouncedSearch, setDebouncedSearch] = useState("");
+    const debounceRef = useRef<NodeJS.Timeout | null>(null);
 
     const emptyForm = {
         job_title: "",
@@ -99,11 +103,10 @@ export default function ApplicationsPage() {
         try {
             const limit = 20;
             const offset = (page - 1) * limit;
-            const url =
-                filterStatus === "all"
-                    ? `/api/applications?limit=${limit}&offset=${offset}`
-                    : `/api/applications?status=${filterStatus}&limit=${limit}&offset=${offset}`;
-            const response = await fetch(url);
+            const params = new URLSearchParams({ limit: String(limit), offset: String(offset) });
+            if (filterStatus !== "all") params.set("status", filterStatus);
+            if (debouncedSearch) params.set("search", debouncedSearch);
+            const response = await fetch(`/api/applications?${params}`);
             const data = await response.json();
             setApplications(data.applications || []);
             setTotalApplications(data.total || 0);
@@ -113,7 +116,17 @@ export default function ApplicationsPage() {
             setLoading(false);
             setIsFetching(false);
         }
-    }, [filterStatus, page]);
+    }, [filterStatus, page, debouncedSearch]);
+
+    // Debounce search input
+    function handleSearchChange(value: string) {
+        setSearchTerm(value);
+        if (debounceRef.current) clearTimeout(debounceRef.current);
+        debounceRef.current = setTimeout(() => {
+            setDebouncedSearch(value);
+            setPage(1);
+        }, 300);
+    }
 
     useEffect(() => {
         fetchApplications();
@@ -405,6 +418,17 @@ export default function ApplicationsPage() {
                             : STATUS_OPTIONS.find((s) => s.value === status)?.label}
                     </Button>
                 ))}
+            </div>
+
+            {/* Search bar */}
+            <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                    placeholder="Search by title, company, or notes..."
+                    value={searchTerm}
+                    onChange={(e) => handleSearchChange(e.target.value)}
+                    className="pl-9"
+                />
             </div>
 
             {/* Application list */}

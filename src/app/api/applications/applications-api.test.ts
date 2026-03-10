@@ -23,6 +23,7 @@ function buildUpdateData(body: Record<string, unknown>): Record<string, unknown>
         "company",
         "applied_at",
         "heard_back_at",
+        "furthest_stage",
     ];
 
     for (const field of allowedFields) {
@@ -45,6 +46,7 @@ describe("buildUpdateData (PATCH field selection)", () => {
             company: "Acme Corp",
             applied_at: "2026-01-06",
             heard_back_at: "2026-01-10",
+            furthest_stage: "interview",
         };
 
         const result = buildUpdateData(body);
