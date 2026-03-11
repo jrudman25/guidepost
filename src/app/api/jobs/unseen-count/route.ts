@@ -24,7 +24,16 @@ export async function GET() {
             .select("*", { count: "exact", head: true })
             .eq("status", "new");
 
-        return NextResponse.json({ count: unseenCount ?? 0, totalNew: totalNewCount ?? 0 });
+        const { count: savedCount } = await supabase
+            .from("job_listings")
+            .select("*", { count: "exact", head: true })
+            .eq("status", "saved");
+
+        return NextResponse.json({
+            count: unseenCount ?? 0,
+            totalNew: totalNewCount ?? 0,
+            savedCount: savedCount ?? 0,
+        });
     } catch (error) {
         console.error("Unseen count error:", error);
         return NextResponse.json(

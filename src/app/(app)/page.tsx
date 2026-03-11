@@ -96,6 +96,7 @@ export default function DashboardPage() {
     }, []);
 
     const [unseenCount, setUnseenCount] = useState(0);
+    const [savedCount, setSavedCount] = useState(0);
     const [inboxTotal, setInboxTotal] = useState(0);
 
     const fetchCounts = useCallback(async () => {
@@ -104,6 +105,7 @@ export default function DashboardPage() {
             if (res.ok) {
                 const data = await res.json();
                 setUnseenCount(data.count ?? 0);
+                setSavedCount(data.savedCount ?? 0);
                 setInboxTotal(data.totalNew ?? 0);
             }
         } catch { }
@@ -239,6 +241,11 @@ export default function DashboardPage() {
                     {unseenCount > 0 && (
                         <span className="inline-flex h-6 min-w-6 items-center justify-center rounded-full bg-blue-500 px-2 text-xs font-semibold text-white">
                             {unseenCount > 99 ? "99+" : unseenCount} unseen
+                        </span>
+                    )}
+                    {savedCount > 0 && (
+                        <span className="inline-flex h-6 min-w-6 items-center justify-center rounded-full bg-amber-500 px-2 text-xs font-semibold text-white">
+                            {savedCount > 99 ? "99+" : savedCount} saved
                         </span>
                     )}
                 </Link>

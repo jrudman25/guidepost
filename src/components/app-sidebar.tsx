@@ -27,7 +27,7 @@ export function AppSidebar() {
     const pathname = usePathname();
     const router = useRouter();
     const [unseenCount, setUnseenCount] = useState(0);
-    const [inboxTotal, setInboxTotal] = useState(0);
+    const [savedCount, setSavedCount] = useState(0);
     const [userEmail, setUserEmail] = useState<string | null>(null);
 
     const fetchCounts = useCallback(async () => {
@@ -36,7 +36,7 @@ export function AppSidebar() {
             if (res.ok) {
                 const data = await res.json();
                 setUnseenCount(data.count ?? 0);
-                setInboxTotal(data.totalNew ?? 0);
+                setSavedCount(data.savedCount ?? 0);
             }
         } catch {
             // Silently fail - non-critical
@@ -63,22 +63,17 @@ export function AppSidebar() {
                 fetchCounts();
             }
         };
-        const handleTotalUpdate = (e: Event) => {
-            const delta = (e as CustomEvent<number>).detail;
-            if (typeof delta === "number") {
-                setInboxTotal((prev) => Math.max(0, prev + delta));
-            } else {
-                fetchCounts();
-            }
+        const handleSavedUpdate = () => {
+            fetchCounts();
         };
 
         window.addEventListener("unseenCountChanged", handleUnseenUpdate);
-        window.addEventListener("inboxTotalChanged", handleTotalUpdate);
+        window.addEventListener("savedCountChanged", handleSavedUpdate);
 
         return () => {
             clearInterval(interval);
             window.removeEventListener("unseenCountChanged", handleUnseenUpdate);
-            window.removeEventListener("inboxTotalChanged", handleTotalUpdate);
+            window.removeEventListener("savedCountChanged", handleSavedUpdate);
         };
     }, [fetchCounts]);
 
@@ -131,12 +126,12 @@ export function AppSidebar() {
                                                 {unseenCount > 99 ? "99+" : unseenCount}
                                             </span>
                                         )}
-                                        {inboxTotal > 0 && (
+                                        {savedCount > 0 && (
                                             <span
-                                                className="inline-flex min-w-[20px] items-center justify-center rounded-full bg-muted text-muted-foreground px-1.5 py-0.5 text-[10px] font-medium leading-none"
-                                                title={`${inboxTotal} total jobs in inbox`}
+                                                className="inline-flex min-w-[20px] items-center justify-center rounded-full bg-amber-500 px-1.5 py-0.5 text-[10px] font-semibold text-white leading-none"
+                                                title={`${savedCount} saved jobs`}
                                             >
-                                                {inboxTotal > 99 ? "99+" : inboxTotal}
+                                                {savedCount > 99 ? "99+" : savedCount}
                                             </span>
                                         )}
                                     </div>
@@ -156,7 +151,7 @@ export function AppSidebar() {
                     Log Out
                 </button>
                 <p className="mt-2 px-3 text-xs text-muted-foreground">
-                    Guidepost v0.7.2
+                    Guidepost v0.7.3
                 </p>
                 <p className="px-3 text-xs text-muted-foreground">
                     Built by{" "}

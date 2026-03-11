@@ -12,12 +12,25 @@ export async function GET(request: Request) {
         const status = searchParams.get("status");
         const limit = parseInt(searchParams.get("limit") || "20");
         const offset = parseInt(searchParams.get("offset") || "0");
+        const sort = searchParams.get("sort") || "applied";
 
         let query = supabase
             .from("applications")
-            .select("*", { count: "exact" })
-            .order("applied_at", { ascending: false })
-            .range(offset, offset + limit - 1);
+            .select("*", { count: "exact" });
+
+        // Apply sort order
+        if (sort === "heard_back") {
+            query = query.order("heard_back_at", { ascending: false, nullsFirst: false });
+        } else if (sort === "title") {
+            query = query.order("job_title", { ascending: true });
+        } else if (sort === "company") {
+            query = query.order("company", { ascending: true });
+        } else {
+            // Default: applied_at descending
+            query = query.order("applied_at", { ascending: false });
+        }
+
+        query = query.range(offset, offset + limit - 1);
 
         if (status) {
             query = query.eq("status", status);

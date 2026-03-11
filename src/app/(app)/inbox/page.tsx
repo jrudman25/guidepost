@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import Link from "next/link";
@@ -157,12 +157,9 @@ export default function InboxPage() {
             if (wasUnseen) {
                 window.dispatchEvent(new CustomEvent("unseenCountChanged", { detail: -1 }));
             }
-            if (job?.status === "new" && status !== "new") {
-                // Leaving inbox
-                window.dispatchEvent(new CustomEvent("inboxTotalChanged", { detail: -1 }));
-            } else if (job?.status !== "new" && status === "new") {
-                // Returning to inbox
-                window.dispatchEvent(new CustomEvent("inboxTotalChanged", { detail: 1 }));
+            // Update sidebar saved count if saved status is involved
+            if (job?.status === "saved" || status === "saved") {
+                window.dispatchEvent(new CustomEvent("savedCountChanged"));
             }
 
             // Remove the job from the list if we're on a filtered tab
@@ -181,7 +178,7 @@ export default function InboxPage() {
                 const maxPage = Math.max(1, Math.ceil(newTotal / 20));
                 const targetPage = page > maxPage ? maxPage : page;
                 setPage(targetPage);
-                fetchJobs(activeTab, targetPage);
+                fetchJobs(activeTab, targetPage, debouncedSearch, sortBy);
             } else {
                 setJobs((prev) =>
                     prev.map((j) => (j.id === jobId ? { ...j, status } : j))
@@ -242,22 +239,10 @@ export default function InboxPage() {
                 window.dispatchEvent(new CustomEvent("unseenCountChanged", { detail: -unseenCount }));
             }
 
-            const newToOtherCount = jobs.filter(
-                (j) => selectedIds.has(j.id) && j.status === "new"
-            ).length;
-            if (newToOtherCount > 0 && status !== "new") {
-                // Leaving inbox
-                window.dispatchEvent(new CustomEvent("inboxTotalChanged", { detail: -newToOtherCount }));
-            }
-
-            // Count non-new jobs returning to inbox
-            if (status === "new") {
-                const otherToNewCount = jobs.filter(
-                    (j) => selectedIds.has(j.id) && j.status !== "new"
-                ).length;
-                if (otherToNewCount > 0) {
-                    window.dispatchEvent(new CustomEvent("inboxTotalChanged", { detail: otherToNewCount }));
-                }
+            // Update sidebar saved count if saved status is involved
+            const hasSaved = jobs.some((j) => selectedIds.has(j.id) && j.status === "saved");
+            if (hasSaved || status === "saved") {
+                window.dispatchEvent(new CustomEvent("savedCountChanged"));
             }
 
             // Remove from list on filtered tabs, update on "all" tab
@@ -269,7 +254,7 @@ export default function InboxPage() {
                 const maxPage = Math.max(1, Math.ceil(newTotal / 20));
                 const targetPage = page > maxPage ? maxPage : page;
                 setPage(targetPage);
-                fetchJobs(activeTab, targetPage);
+                fetchJobs(activeTab, targetPage, debouncedSearch, sortBy);
             } else {
                 setJobs((prev) =>
                     prev.map((j) =>
@@ -481,6 +466,23 @@ export default function InboxPage() {
                                                         {job.salary_info}
                                                     </span>
                                                 )}
+                                                {job.status === "saved" && (() => {
+                                                    const days = Math.floor(
+                                                        (Date.now() - new Date(job.discovered_at).getTime()) / (1000 * 60 * 60 * 24)
+                                                    );
+                                                    const label = days === 0 ? "Saved today" : days === 1 ? "Saved 1 day ago" : `Saved ${days} days ago`;
+                                                    const color = days <= 3
+                                                        ? "text-emerald-500 border-emerald-500/30 bg-emerald-500/10"
+                                                        : days <= 7
+                                                        ? "text-amber-500 border-amber-500/30 bg-amber-500/10"
+                                                        : "text-red-500 border-red-500/30 bg-red-500/10";
+                                                    return (
+                                                        <span className={cn("flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-medium", color)}>
+                                                            <Clock className="h-2.5 w-2.5" />
+                                                            {label}
+                                                        </span>
+                                                    );
+                                                })()}
                                             </div>
                                         </div>
                                         <Badge
