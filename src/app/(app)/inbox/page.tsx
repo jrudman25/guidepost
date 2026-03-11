@@ -7,6 +7,7 @@ import { parseLocalDate, toLocalDateString } from "@/lib/date-utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
     Loader2,
@@ -24,6 +25,7 @@ import {
     Square,
     Trash2,
     Inbox,
+    ArrowUpDown,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn, handleApiError, toastApiError } from "@/lib/utils";
@@ -50,6 +52,7 @@ export default function InboxPage() {
     const [bulkUpdating, setBulkUpdating] = useState(false);
     const [searchTerm, setSearchTerm] = useState("");
     const [debouncedSearch, setDebouncedSearch] = useState("");
+    const [sortBy, setSortBy] = useState("score");
     const debounceRef = useRef<NodeJS.Timeout | null>(null);
 
     async function markAsSeen(job: JobListing) {
@@ -74,12 +77,12 @@ export default function InboxPage() {
         markAsSeen(job);
     }
 
-    const fetchJobs = useCallback(async (status?: string, currentPage = 1, search = "") => {
+    const fetchJobs = useCallback(async (status?: string, currentPage = 1, search = "", sort = "score") => {
         setIsFetching(true);
         try {
             const limit = 20;
             const offset = (currentPage - 1) * limit;
-            const params = new URLSearchParams({ limit: String(limit), offset: String(offset) });
+            const params = new URLSearchParams({ limit: String(limit), offset: String(offset), sort });
             if (status) params.set("status", status);
             if (search) params.set("search", search);
             const response = await fetch(`/api/jobs?${params}`);
@@ -95,8 +98,8 @@ export default function InboxPage() {
     }, []);
 
     useEffect(() => {
-        fetchJobs(activeTab === "all" ? undefined : activeTab, page, debouncedSearch);
-    }, [activeTab, fetchJobs, page, debouncedSearch]);
+        fetchJobs(activeTab === "all" ? undefined : activeTab, page, debouncedSearch, sortBy);
+    }, [activeTab, fetchJobs, page, debouncedSearch, sortBy]);
 
     // Debounce search input
     function handleSearchChange(value: string) {
@@ -333,15 +336,29 @@ export default function InboxPage() {
                 </TabsList>
             </Tabs>
 
-            {/* Search bar */}
-            <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                    placeholder="Search by title, company, or location..."
-                    value={searchTerm}
-                    onChange={(e) => handleSearchChange(e.target.value)}
-                    className="pl-9"
-                />
+            {/* Search bar + sort */}
+            <div className="flex gap-2">
+                <div className="relative flex-1">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                        placeholder="Search by title, company, or location..."
+                        value={searchTerm}
+                        onChange={(e) => handleSearchChange(e.target.value)}
+                        className="pl-9"
+                    />
+                </div>
+                <Select value={sortBy} onValueChange={(val) => { setSortBy(val); setPage(1); }}>
+                    <SelectTrigger className="w-[160px] shrink-0">
+                        <ArrowUpDown className="mr-2 h-3.5 w-3.5" />
+                        <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="score">Score</SelectItem>
+                        <SelectItem value="newest">Newest</SelectItem>
+                        <SelectItem value="title">Title A–Z</SelectItem>
+                        <SelectItem value="company">Company A–Z</SelectItem>
+                    </SelectContent>
+                </Select>
             </div>
 
             {loading ? (

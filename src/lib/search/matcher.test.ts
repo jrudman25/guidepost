@@ -47,7 +47,7 @@ describe("scoreJobMatch", () => {
 
     it("parses a valid Gemini response", async () => {
         mockGenerate.mockResolvedValue(
-            JSON.stringify({ score: 85, reasoning: "Strong skill overlap." })
+            { text: JSON.stringify({ score: 85, reasoning: "Strong skill overlap." }), model: "test-model" }
         );
 
         const result = await scoreJobMatch(sampleJob, makeResume());
@@ -57,7 +57,7 @@ describe("scoreJobMatch", () => {
 
     it("clamps scores above 100", async () => {
         mockGenerate.mockResolvedValue(
-            JSON.stringify({ score: 150, reasoning: "Over the top." })
+            { text: JSON.stringify({ score: 150, reasoning: "Over the top." }), model: "test-model" }
         );
 
         const result = await scoreJobMatch(sampleJob, makeResume());
@@ -66,7 +66,7 @@ describe("scoreJobMatch", () => {
 
     it("clamps scores below 0", async () => {
         mockGenerate.mockResolvedValue(
-            JSON.stringify({ score: -10, reasoning: "No match." })
+            { text: JSON.stringify({ score: -10, reasoning: "No match." }), model: "test-model" }
         );
 
         const result = await scoreJobMatch(sampleJob, makeResume());
@@ -75,7 +75,7 @@ describe("scoreJobMatch", () => {
 
     it("rounds fractional scores", async () => {
         mockGenerate.mockResolvedValue(
-            JSON.stringify({ score: 72.7, reasoning: "Good fit." })
+            { text: JSON.stringify({ score: 72.7, reasoning: "Good fit." }), model: "test-model" }
         );
 
         const result = await scoreJobMatch(sampleJob, makeResume());
@@ -84,7 +84,7 @@ describe("scoreJobMatch", () => {
 
     it("strips markdown code blocks from Gemini response", async () => {
         mockGenerate.mockResolvedValue(
-            '```json\n{"score": 60, "reasoning": "Decent match."}\n```'
+            { text: '```json\n{"score": 60, "reasoning": "Decent match."}\n```', model: "test-model" }
         );
 
         const result = await scoreJobMatch(sampleJob, makeResume());
@@ -102,7 +102,7 @@ describe("scoreJobMatch", () => {
 
     it("passes seniority to prompt", async () => {
         mockGenerate.mockResolvedValue(
-            JSON.stringify({ score: 40, reasoning: "Wrong level." })
+            { text: JSON.stringify({ score: 40, reasoning: "Wrong level." }), model: "test-model" }
         );
 
         await scoreJobMatch(sampleJob, makeResume(), "entry");
@@ -112,7 +112,7 @@ describe("scoreJobMatch", () => {
 
     it("shows 'Any level' when seniority is 'any'", async () => {
         mockGenerate.mockResolvedValue(
-            JSON.stringify({ score: 70, reasoning: "Any level." })
+            { text: JSON.stringify({ score: 70, reasoning: "Any level." }), model: "test-model" }
         );
 
         await scoreJobMatch(sampleJob, makeResume(), "any");
@@ -122,7 +122,7 @@ describe("scoreJobMatch", () => {
 
     it("truncates long descriptions to 2000 chars", async () => {
         mockGenerate.mockResolvedValue(
-            JSON.stringify({ score: 50, reasoning: "OK." })
+            { text: JSON.stringify({ score: 50, reasoning: "OK." }), model: "test-model" }
         );
 
         const longJob = {
@@ -157,7 +157,7 @@ describe("scoreJobBatch", () => {
 
     it("uses single-job scoring for 1 job", async () => {
         mockGenerate.mockResolvedValue(
-            JSON.stringify({ score: 85, reasoning: "Great fit." })
+            { text: JSON.stringify({ score: 85, reasoning: "Great fit." }), model: "test-model" }
         );
 
         const results = await scoreJobBatch([sampleJob], makeResume());
@@ -168,10 +168,12 @@ describe("scoreJobBatch", () => {
 
     it("scores multiple jobs in a single batch API call", async () => {
         mockGenerate.mockResolvedValue(
-            JSON.stringify([
-                { score: 90, reasoning: "Excellent match." },
-                { score: 60, reasoning: "Partial match." },
-            ])
+            {
+                text: JSON.stringify([
+                    { score: 90, reasoning: "Excellent match." },
+                    { score: 60, reasoning: "Partial match." },
+                ]), model: "test-model"
+            }
         );
 
         const jobs = [

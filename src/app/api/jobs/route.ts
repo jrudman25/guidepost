@@ -14,13 +14,27 @@ export async function GET(request: Request) {
         const status = searchParams.get("status");
         const limit = parseInt(searchParams.get("limit") || "50");
         const offset = parseInt(searchParams.get("offset") || "0");
+        const sort = searchParams.get("sort") || "score";
 
         let query = supabase
             .from("job_listings")
-            .select("*", { count: "exact" })
-            .order("match_score", { ascending: false, nullsFirst: false })
-            .order("discovered_at", { ascending: false })
-            .range(offset, offset + limit - 1);
+            .select("*", { count: "exact" });
+
+        // Apply sort order
+        if (sort === "newest") {
+            query = query.order("discovered_at", { ascending: false });
+        } else if (sort === "title") {
+            query = query.order("title", { ascending: true });
+        } else if (sort === "company") {
+            query = query.order("company", { ascending: true });
+        } else {
+            // Default: score descending
+            query = query
+                .order("match_score", { ascending: false, nullsFirst: false })
+                .order("discovered_at", { ascending: false });
+        }
+
+        query = query.range(offset, offset + limit - 1);
 
         if (status) {
             query = query.eq("status", status);

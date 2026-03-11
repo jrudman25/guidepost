@@ -97,7 +97,7 @@ export async function scoreJobMatch(
         .replace("{description}", (job.description || "No description available").substring(0, 2000));
 
     try {
-        const text = await generateWithFallback(prompt, 15000);
+        const { text } = await generateWithFallback(prompt, 15000);
         const cleaned = text.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
         const parsed = JSON.parse(cleaned) as MatchResult;
 
@@ -141,7 +141,8 @@ async function scoreBatchSingle(
         .replace("{jobListings}", jobListingsText);
 
     try {
-        const text = await generateWithFallback(prompt, 60000);
+        const { text, model } = await generateWithFallback(prompt, 60000);
+        logger?.info("scoring", `Batch used model: ${model}`);
         const cleaned = text.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
         const parsed = JSON.parse(cleaned) as MatchResult[];
 
