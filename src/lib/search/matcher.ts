@@ -84,7 +84,8 @@ type JobInput = { title: string; company: string; description: string | null };
 export async function scoreJobMatch(
     job: JobInput,
     resume: ParsedResumeData,
-    targetSeniority: string = "any"
+    targetSeniority: string = "any",
+    logger?: PipelineLogger
 ): Promise<MatchResult> {
     const prompt = SINGLE_MATCH_PROMPT
         .replace("{titles}", resume.job_titles.join(", "))
@@ -97,7 +98,8 @@ export async function scoreJobMatch(
         .replace("{description}", (job.description || "No description available").substring(0, 2000));
 
     try {
-        const { text } = await generateWithFallback(prompt, 15000);
+        const { text, model } = await generateWithFallback(prompt, 15000);
+        logger?.info("scoring", `Scored with model: ${model}`);
         const cleaned = text.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
         const parsed = JSON.parse(cleaned) as MatchResult;
 
@@ -186,7 +188,7 @@ export async function scoreJobBatch(
 
     // Single job doesn't need batching
     if (jobs.length === 1) {
-        const result = await scoreJobMatch(jobs[0], resume, targetSeniority);
+        const result = await scoreJobMatch(jobs[0], resume, targetSeniority, logger);
         return [result];
     }
 

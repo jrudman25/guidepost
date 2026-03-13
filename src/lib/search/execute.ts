@@ -70,6 +70,7 @@ export async function executeJobSearch(
 
         const searchFilters: SearchFilter = filters || {
             id: "",
+            user_id: resume.user_id,
             resume_id: resume.id,
             keywords: [],
             location: null,

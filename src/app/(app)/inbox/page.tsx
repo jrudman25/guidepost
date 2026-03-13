@@ -53,6 +53,7 @@ export default function InboxPage() {
     const [searchTerm, setSearchTerm] = useState("");
     const [debouncedSearch, setDebouncedSearch] = useState("");
     const [sortBy, setSortBy] = useState("score");
+    const [unseenOnly, setUnseenOnly] = useState(false);
     const debounceRef = useRef<NodeJS.Timeout | null>(null);
 
     async function markAsSeen(job: JobListing) {
@@ -77,7 +78,7 @@ export default function InboxPage() {
         markAsSeen(job);
     }
 
-    const fetchJobs = useCallback(async (status?: string, currentPage = 1, search = "", sort = "score") => {
+    const fetchJobs = useCallback(async (status?: string, currentPage = 1, search = "", sort = "score", unseen = false) => {
         setIsFetching(true);
         try {
             const limit = 20;
@@ -85,6 +86,7 @@ export default function InboxPage() {
             const params = new URLSearchParams({ limit: String(limit), offset: String(offset), sort });
             if (status) params.set("status", status);
             if (search) params.set("search", search);
+            if (unseen) params.set("unseen", "true");
             const response = await fetch(`/api/jobs?${params}`);
             const data = await response.json();
             setJobs(data.jobs || []);
@@ -98,8 +100,8 @@ export default function InboxPage() {
     }, []);
 
     useEffect(() => {
-        fetchJobs(activeTab === "all" ? undefined : activeTab, page, debouncedSearch, sortBy);
-    }, [activeTab, fetchJobs, page, debouncedSearch, sortBy]);
+        fetchJobs(activeTab === "all" ? undefined : activeTab, page, debouncedSearch, sortBy, unseenOnly);
+    }, [activeTab, fetchJobs, page, debouncedSearch, sortBy, unseenOnly]);
 
     // Debounce search input
     function handleSearchChange(value: string) {
@@ -145,10 +147,12 @@ export default function InboxPage() {
             const job = jobs.find((j) => j.id === jobId);
             const wasUnseen = job && !job.seen_at && job.status === "new";
 
+            const now = new Date().toISOString();
+
             const response = await fetch(`/api/jobs/${jobId}`, {
                 method: "PATCH",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ status }),
+                body: JSON.stringify({ status, ...(!job?.seen_at ? { seen_at: now } : {}) }),
             });
 
             if (!response.ok) throw new Error("Failed to update");
@@ -178,7 +182,7 @@ export default function InboxPage() {
                 const maxPage = Math.max(1, Math.ceil(newTotal / 20));
                 const targetPage = page > maxPage ? maxPage : page;
                 setPage(targetPage);
-                fetchJobs(activeTab, targetPage, debouncedSearch, sortBy);
+                fetchJobs(activeTab, targetPage, debouncedSearch, sortBy, unseenOnly);
             } else {
                 setJobs((prev) =>
                     prev.map((j) => (j.id === jobId ? { ...j, status } : j))
@@ -254,7 +258,7 @@ export default function InboxPage() {
                 const maxPage = Math.max(1, Math.ceil(newTotal / 20));
                 const targetPage = page > maxPage ? maxPage : page;
                 setPage(targetPage);
-                fetchJobs(activeTab, targetPage, debouncedSearch, sortBy);
+                fetchJobs(activeTab, targetPage, debouncedSearch, sortBy, unseenOnly);
             } else {
                 setJobs((prev) =>
                     prev.map((j) =>
@@ -312,13 +316,36 @@ export default function InboxPage() {
 
             {/* Tabs */}
             <Tabs value={activeTab} onValueChange={(val) => { setActiveTab(val); setPage(1); }}>
-                <TabsList>
-                    <TabsTrigger value="new">New</TabsTrigger>
-                    <TabsTrigger value="saved">Saved</TabsTrigger>
-                    <TabsTrigger value="applied">Applied</TabsTrigger>
-                    <TabsTrigger value="dismissed">Dismissed</TabsTrigger>
-                    <TabsTrigger value="all">All</TabsTrigger>
-                </TabsList>
+                <div className="flex items-center gap-4">
+                    <TabsList>
+                        <TabsTrigger value="new">New</TabsTrigger>
+                        <TabsTrigger value="saved">Saved</TabsTrigger>
+                        <TabsTrigger value="applied">Applied</TabsTrigger>
+                        <TabsTrigger value="dismissed">Dismissed</TabsTrigger>
+                        <TabsTrigger value="all">All</TabsTrigger>
+                    </TabsList>
+                    <label className="flex items-center gap-2 cursor-pointer select-none">
+                        <button
+                            type="button"
+                            role="checkbox"
+                            aria-checked={unseenOnly}
+                            onClick={() => { setUnseenOnly(!unseenOnly); setPage(1); }}
+                            className={cn(
+                                "flex h-4 w-4 items-center justify-center rounded border transition-colors",
+                                unseenOnly
+                                    ? "border-blue-500 bg-blue-500 text-white"
+                                    : "border-muted-foreground/40 bg-transparent"
+                            )}
+                        >
+                            {unseenOnly && (
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="h-3 w-3">
+                                    <polyline points="20 6 9 17 4 12" />
+                                </svg>
+                            )}
+                        </button>
+                        <span className="text-sm text-muted-foreground">Unseen only</span>
+                    </label>
+                </div>
             </Tabs>
 
             {/* Search bar + sort */}

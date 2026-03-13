@@ -44,6 +44,13 @@ export async function PATCH(request: Request) {
             return NextResponse.json({ error: error.message }, { status: 500 });
         }
 
+        // Mark any unseen jobs in this batch as seen
+        await supabase
+            .from("job_listings")
+            .update({ seen_at: new Date().toISOString() })
+            .in("id", ids)
+            .is("seen_at", null);
+
         return NextResponse.json({ success: true, updated: ids.length });
     } catch (error) {
         console.error("Bulk update jobs error:", error);
