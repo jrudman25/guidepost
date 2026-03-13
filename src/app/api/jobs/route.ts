@@ -45,6 +45,10 @@ export async function GET(request: Request) {
             query = query.or(`title.ilike.%${search}%,company.ilike.%${search}%,location.ilike.%${search}%`);
         }
 
+        if (searchParams.get("unseen") === "true") {
+            query = query.is("seen_at", null);
+        }
+
         const { data: jobs, count, error } = await query;
 
         if (error) {

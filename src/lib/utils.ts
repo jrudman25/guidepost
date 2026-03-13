@@ -1,5 +1,6 @@
 import { clsx, type ClassValue } from "clsx"
 import { twMerge } from "tailwind-merge"
+import { toast } from "sonner"
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
@@ -13,15 +14,13 @@ export async function handleApiError(response: Response, defaultMessage: string 
 }
 
 export function toastApiError(e: unknown, defaultMessage: string) {
-  import("sonner").then(({ toast }) => {
-    if (e instanceof Error) {
-      if (e.message.includes("Demo Account")) {
-        toast.info(e.message);
-        return;
-      }
-      toast.error(e.message);
+  if (e instanceof Error) {
+    if (e.message.includes("Demo Account")) {
+      toast.info(e.message);
       return;
     }
-    toast.error(defaultMessage);
-  });
+    toast.error(e.message);
+    return;
+  }
+  toast.error(defaultMessage);
 }

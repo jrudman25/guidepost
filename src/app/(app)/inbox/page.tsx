@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import Link from "next/link";
@@ -53,6 +53,7 @@ export default function InboxPage() {
     const [searchTerm, setSearchTerm] = useState("");
     const [debouncedSearch, setDebouncedSearch] = useState("");
     const [sortBy, setSortBy] = useState("score");
+    const [unseenOnly, setUnseenOnly] = useState(false);
     const debounceRef = useRef<NodeJS.Timeout | null>(null);
 
     async function markAsSeen(job: JobListing) {
@@ -77,7 +78,7 @@ export default function InboxPage() {
         markAsSeen(job);
     }
 
-    const fetchJobs = useCallback(async (status?: string, currentPage = 1, search = "", sort = "score") => {
+    const fetchJobs = useCallback(async (status?: string, currentPage = 1, search = "", sort = "score", unseen = false) => {
         setIsFetching(true);
         try {
             const limit = 20;
@@ -85,6 +86,7 @@ export default function InboxPage() {
             const params = new URLSearchParams({ limit: String(limit), offset: String(offset), sort });
             if (status) params.set("status", status);
             if (search) params.set("search", search);
+            if (unseen) params.set("unseen", "true");
             const response = await fetch(`/api/jobs?${params}`);
             const data = await response.json();
             setJobs(data.jobs || []);
@@ -98,8 +100,8 @@ export default function InboxPage() {
     }, []);
 
     useEffect(() => {
-        fetchJobs(activeTab === "all" ? undefined : activeTab, page, debouncedSearch, sortBy);
-    }, [activeTab, fetchJobs, page, debouncedSearch, sortBy]);
+        fetchJobs(activeTab === "all" ? undefined : activeTab, page, debouncedSearch, sortBy, unseenOnly);
+    }, [activeTab, fetchJobs, page, debouncedSearch, sortBy, unseenOnly]);
 
     // Debounce search input
     function handleSearchChange(value: string) {
@@ -145,10 +147,12 @@ export default function InboxPage() {
             const job = jobs.find((j) => j.id === jobId);
             const wasUnseen = job && !job.seen_at && job.status === "new";
 
+            const now = new Date().toISOString();
+
             const response = await fetch(`/api/jobs/${jobId}`, {
                 method: "PATCH",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ status }),
+                body: JSON.stringify({ status, ...(!job?.seen_at ? { seen_at: now } : {}) }),
             });
 
             if (!response.ok) throw new Error("Failed to update");
@@ -157,12 +161,9 @@ export default function InboxPage() {
             if (wasUnseen) {
                 window.dispatchEvent(new CustomEvent("unseenCountChanged", { detail: -1 }));
             }
-            if (job?.status === "new" && status !== "new") {
-                // Leaving inbox
-                window.dispatchEvent(new CustomEvent("inboxTotalChanged", { detail: -1 }));
-            } else if (job?.status !== "new" && status === "new") {
-                // Returning to inbox
-                window.dispatchEvent(new CustomEvent("inboxTotalChanged", { detail: 1 }));
+            // Update sidebar saved count if saved status is involved
+            if (job?.status === "saved" || status === "saved") {
+                window.dispatchEvent(new CustomEvent("savedCountChanged"));
             }
 
             // Remove the job from the list if we're on a filtered tab
@@ -181,7 +182,7 @@ export default function InboxPage() {
                 const maxPage = Math.max(1, Math.ceil(newTotal / 20));
                 const targetPage = page > maxPage ? maxPage : page;
                 setPage(targetPage);
-                fetchJobs(activeTab, targetPage);
+                fetchJobs(activeTab, targetPage, debouncedSearch, sortBy, unseenOnly);
             } else {
                 setJobs((prev) =>
                     prev.map((j) => (j.id === jobId ? { ...j, status } : j))
@@ -242,22 +243,10 @@ export default function InboxPage() {
                 window.dispatchEvent(new CustomEvent("unseenCountChanged", { detail: -unseenCount }));
             }
 
-            const newToOtherCount = jobs.filter(
-                (j) => selectedIds.has(j.id) && j.status === "new"
-            ).length;
-            if (newToOtherCount > 0 && status !== "new") {
-                // Leaving inbox
-                window.dispatchEvent(new CustomEvent("inboxTotalChanged", { detail: -newToOtherCount }));
-            }
-
-            // Count non-new jobs returning to inbox
-            if (status === "new") {
-                const otherToNewCount = jobs.filter(
-                    (j) => selectedIds.has(j.id) && j.status !== "new"
-                ).length;
-                if (otherToNewCount > 0) {
-                    window.dispatchEvent(new CustomEvent("inboxTotalChanged", { detail: otherToNewCount }));
-                }
+            // Update sidebar saved count if saved status is involved
+            const hasSaved = jobs.some((j) => selectedIds.has(j.id) && j.status === "saved");
+            if (hasSaved || status === "saved") {
+                window.dispatchEvent(new CustomEvent("savedCountChanged"));
             }
 
             // Remove from list on filtered tabs, update on "all" tab
@@ -269,7 +258,7 @@ export default function InboxPage() {
                 const maxPage = Math.max(1, Math.ceil(newTotal / 20));
                 const targetPage = page > maxPage ? maxPage : page;
                 setPage(targetPage);
-                fetchJobs(activeTab, targetPage);
+                fetchJobs(activeTab, targetPage, debouncedSearch, sortBy, unseenOnly);
             } else {
                 setJobs((prev) =>
                     prev.map((j) =>
@@ -327,13 +316,36 @@ export default function InboxPage() {
 
             {/* Tabs */}
             <Tabs value={activeTab} onValueChange={(val) => { setActiveTab(val); setPage(1); }}>
-                <TabsList>
-                    <TabsTrigger value="new">New</TabsTrigger>
-                    <TabsTrigger value="saved">Saved</TabsTrigger>
-                    <TabsTrigger value="applied">Applied</TabsTrigger>
-                    <TabsTrigger value="dismissed">Dismissed</TabsTrigger>
-                    <TabsTrigger value="all">All</TabsTrigger>
-                </TabsList>
+                <div className="flex items-center gap-4">
+                    <TabsList>
+                        <TabsTrigger value="new">New</TabsTrigger>
+                        <TabsTrigger value="saved">Saved</TabsTrigger>
+                        <TabsTrigger value="applied">Applied</TabsTrigger>
+                        <TabsTrigger value="dismissed">Dismissed</TabsTrigger>
+                        <TabsTrigger value="all">All</TabsTrigger>
+                    </TabsList>
+                    <label className="flex items-center gap-2 cursor-pointer select-none">
+                        <button
+                            type="button"
+                            role="checkbox"
+                            aria-checked={unseenOnly}
+                            onClick={() => { setUnseenOnly(!unseenOnly); setPage(1); }}
+                            className={cn(
+                                "flex h-4 w-4 items-center justify-center rounded border transition-colors",
+                                unseenOnly
+                                    ? "border-blue-500 bg-blue-500 text-white"
+                                    : "border-muted-foreground/40 bg-transparent"
+                            )}
+                        >
+                            {unseenOnly && (
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="h-3 w-3">
+                                    <polyline points="20 6 9 17 4 12" />
+                                </svg>
+                            )}
+                        </button>
+                        <span className="text-sm text-muted-foreground">Unseen only</span>
+                    </label>
+                </div>
             </Tabs>
 
             {/* Search bar + sort */}
@@ -481,6 +493,23 @@ export default function InboxPage() {
                                                         {job.salary_info}
                                                     </span>
                                                 )}
+                                                {job.status === "saved" && (() => {
+                                                    const days = Math.floor(
+                                                        (Date.now() - new Date(job.discovered_at).getTime()) / (1000 * 60 * 60 * 24)
+                                                    );
+                                                    const label = days === 0 ? "Saved today" : days === 1 ? "Saved 1 day ago" : `Saved ${days} days ago`;
+                                                    const color = days <= 3
+                                                        ? "text-emerald-500 border-emerald-500/30 bg-emerald-500/10"
+                                                        : days <= 7
+                                                        ? "text-amber-500 border-amber-500/30 bg-amber-500/10"
+                                                        : "text-red-500 border-red-500/30 bg-red-500/10";
+                                                    return (
+                                                        <span className={cn("flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-medium", color)}>
+                                                            <Clock className="h-2.5 w-2.5" />
+                                                            {label}
+                                                        </span>
+                                                    );
+                                                })()}
                                             </div>
                                         </div>
                                         <Badge

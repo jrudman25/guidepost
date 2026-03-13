@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import type { Application, ApplicationStatus } from "@/lib/types";
@@ -33,6 +33,7 @@ import {
     Pencil,
     Reply,
     Search,
+    ArrowUpDown,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn, handleApiError, toastApiError } from "@/lib/utils";
@@ -81,6 +82,7 @@ export default function ApplicationsPage() {
     const [editingApp, setEditingApp] = useState<Application | null>(null);
     const [searchTerm, setSearchTerm] = useState("");
     const [debouncedSearch, setDebouncedSearch] = useState("");
+    const [sortBy, setSortBy] = useState("applied");
     const debounceRef = useRef<NodeJS.Timeout | null>(null);
 
     const emptyForm = {
@@ -103,7 +105,7 @@ export default function ApplicationsPage() {
         try {
             const limit = 20;
             const offset = (page - 1) * limit;
-            const params = new URLSearchParams({ limit: String(limit), offset: String(offset) });
+            const params = new URLSearchParams({ limit: String(limit), offset: String(offset), sort: sortBy });
             if (filterStatus !== "all") params.set("status", filterStatus);
             if (debouncedSearch) params.set("search", debouncedSearch);
             const response = await fetch(`/api/applications?${params}`);
@@ -116,7 +118,7 @@ export default function ApplicationsPage() {
             setLoading(false);
             setIsFetching(false);
         }
-    }, [filterStatus, page, debouncedSearch]);
+    }, [filterStatus, page, debouncedSearch, sortBy]);
 
     // Debounce search input
     function handleSearchChange(value: string) {
@@ -420,15 +422,29 @@ export default function ApplicationsPage() {
                 ))}
             </div>
 
-            {/* Search bar */}
-            <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                    placeholder="Search by title, company, or notes..."
-                    value={searchTerm}
-                    onChange={(e) => handleSearchChange(e.target.value)}
-                    className="pl-9"
-                />
+            {/* Search bar + sort */}
+            <div className="flex gap-2">
+                <div className="relative flex-1">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                        placeholder="Search by title, company, or notes..."
+                        value={searchTerm}
+                        onChange={(e) => handleSearchChange(e.target.value)}
+                        className="pl-9"
+                    />
+                </div>
+                <Select value={sortBy} onValueChange={(val) => { setSortBy(val); setPage(1); }}>
+                    <SelectTrigger className="w-[180px] shrink-0">
+                        <ArrowUpDown className="mr-2 h-3.5 w-3.5" />
+                        <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="applied">Date Applied</SelectItem>
+                        <SelectItem value="heard_back">Date Heard Back</SelectItem>
+                        <SelectItem value="title">Title A–Z</SelectItem>
+                        <SelectItem value="company">Company A–Z</SelectItem>
+                    </SelectContent>
+                </Select>
             </div>
 
             {/* Application list */}

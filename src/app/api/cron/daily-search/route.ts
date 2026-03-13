@@ -62,7 +62,7 @@ export async function GET(request: Request) {
         // 6. Execute search (excluding demo account)
         const result = await executeJobSearch(undefined, supabase, demoUserId);
 
-        // 6. Persist pipeline logs to Supabase Storage
+        // 7. Persist pipeline logs to Supabase Storage
         await result.logger.persist(supabase);
 
         return NextResponse.json({

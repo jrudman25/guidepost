@@ -9,11 +9,12 @@ A full-stack job search management tool that automatically finds job listings ma
 3. **Auto-discover jobs** — a daily cron job queries Google Jobs via SerpAPI, deduplicates results, and filters by your preferences
 4. **AI match scoring** — jobs are scored 0–100 in batches against your resume with written explanations
 5. **Track applications** — move jobs through a pipeline (applied → screening → interview → offer / rejected / ghosted) with "furthest stage reached" tracking for granular rejection analytics
-6. **Search & filter** — debounced search bars on both the job inbox and applications pages, combined with tab/status filters
-7. **Dashboard analytics** — response rate, weekly volume, status breakdown, rejection funnel by pipeline stage, and skill demand trends
-8. **Pipeline logs** — persistent daily logs of every search run (SerpAPI results, Gemini scoring, errors) viewable in-app
-9. **Automated backups** — daily database snapshots to Supabase Storage with 30-day retention
-10. **Demo mode** — read-only guest account with sample data for showcasing the app
+6. **Search, sort & filter** — debounced search bars and sort dropdowns (by score, date, title, company) on both the job inbox and applications pages, combined with tab/status filters and paginated results
+7. **Saved job reminders** — amber badge on the sidebar shows saved count, and saved job cards display color-coded aging indicators (green ≤3 days, amber 4–7 days, red >7 days)
+8. **Dashboard analytics** — response rate, average time to hear back, weekly volume, status breakdown, rejection funnel by pipeline stage, and a skills profile
+9. **Pipeline logs** — persistent daily logs of every search run (SerpAPI results, Gemini model used, scoring, errors) viewable in-app
+10. **Automated backups** — daily database snapshots to Supabase Storage with 30-day retention
+11. **Demo mode** — read-only guest account with sample data for showcasing the app
 
 ## Tech Stack
 
@@ -36,9 +37,9 @@ src/
   app/
     (app)/                # Authenticated pages
       page.tsx            #   Dashboard with analytics + rejection funnel
-      inbox/              #   Job inbox with search, filtering, pagination, bulk actions
+      inbox/              #   Job inbox with search, sort, filtering, pagination, bulk actions
       resumes/            #   Resume management + search filter config
-      applications/       #   Application pipeline tracker with search
+      applications/       #   Application pipeline tracker with search + sort
       logs/               #   Pipeline log viewer (admin only)
     api/
       jobs/               #   CRUD + bulk update + manual search trigger
@@ -64,18 +65,20 @@ src/
     supabase/             # Server, browser, and service role client helpers
     date-utils.ts         # Timezone-safe date formatting
     types.ts              # Shared TypeScript interfaces
-  middleware.ts           # Auth guard + demo account write protection
+  proxy.ts              # Auth guard + demo account write protection (Next.js 16 proxy)
 ```
 
 ## Key Design Decisions
 
-- **Batch AI scoring** — multiple jobs are scored in a single Gemini API call (batches of 5) to stay within the free-tier rate limit of 20 requests/day while maintaining score quality
+- **Batch AI scoring** — multiple jobs are scored in a single Gemini API call (batches of 5) to stay within rate limits while maintaining score quality
 - **Shared search executor** — the cron job and the "Search Now" button both call `executeJobSearch` directly, avoiding HTTP round-trips and auth issues
 - **Row Level Security** — Supabase RLS policies enforce per-user data isolation at the database level; the demo account's data is completely separate
 - **Structured pipeline logging** — search runs produce categorized markdown logs (SerpAPI results, filtering summaries, score distributions, errors) persisted to Supabase Storage with 14-day retention
 - **Database-level status tracking** — a PostgreSQL `BEFORE UPDATE` trigger logs every application status change to `status_history`, updates `status_updated_at`, and auto-advances `furthest_stage` (the highest pipeline stage reached, used for rejection funnel analytics)
 - **Batched deduplication** — URL-based dedup uses a single `IN` query per search instead of per-job queries, with a `Set` for O(1) cross-query tracking
 - **Graceful AI fallbacks** — a three-model fallback chain (Gemini 3 Flash → 2.5 Flash → 3.1 Flash Lite) ensures API calls succeed even during outages; if all models fail during scoring, jobs default to a score of 50
+- **Post-fetch location filtering** — non-remote jobs from distant locations are filtered after SerpAPI returns but before Gemini scoring, using keyword-based remote detection and state/city matching against the user's location filter
+- **Saved job aging** — saved cards show a color-coded "Saved X days ago" badge (green/amber/red) to discourage letting saved listings go stale
 - **Demo account isolation** — middleware blocks all non-GET requests for the demo user; pipeline logs and admin features are hidden from demo sessions
 
 ## Daily Cron Pipeline
