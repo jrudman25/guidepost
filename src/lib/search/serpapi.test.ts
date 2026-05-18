@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { normalizeJob, type SerpApiJob } from "./serpapi";
+import type { PipelineLogger } from "@/lib/pipeline-logger";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -123,6 +124,7 @@ describe("searchJobs", () => {
         await expect(
             searchJobs("Engineer", {
                 id: "f1",
+                user_id: "u1",
                 resume_id: "r1",
                 keywords: [],
                 location: null,
@@ -148,6 +150,7 @@ describe("searchJobs", () => {
         const { searchJobs } = await import("./serpapi");
         const result = await searchJobs("Engineer", {
             id: "f1",
+            user_id: "u1",
             resume_id: "r1",
             keywords: [],
             location: null,
@@ -159,6 +162,109 @@ describe("searchJobs", () => {
         });
 
         expect(result).toEqual(mockJobs);
+    });
+
+    it("applies listing age with the returned Date posted uds filter", async () => {
+        const mockJobs = [makeJob()];
+        const fetchMock = vi.fn()
+            .mockResolvedValueOnce({
+                ok: true,
+                json: () => Promise.resolve({
+                    filters: [
+                        {
+                            name: "Date posted",
+                            options: [
+                                {
+                                    name: "Last 3 days",
+                                    q: "Engineer in the last 3 days",
+                                    uds: "uds-3-days",
+                                },
+                                {
+                                    name: "Last week",
+                                    q: "Engineer in the last week",
+                                    uds: "uds-last-week",
+                                },
+                            ],
+                        },
+                    ],
+                }),
+            })
+            .mockResolvedValueOnce({
+                ok: true,
+                json: () => Promise.resolve({
+                    jobs_results: mockJobs,
+                    serpapi_pagination: {
+                        next_page_token: "next-page",
+                    },
+                }),
+            });
+        vi.stubGlobal("fetch", fetchMock);
+
+        const { searchJobs } = await import("./serpapi");
+        const logger = {
+            info: vi.fn(),
+            warn: vi.fn(),
+        } as unknown as PipelineLogger;
+        const result = await searchJobs("Engineer", {
+            id: "f1",
+            user_id: "u1",
+            resume_id: "r1",
+            keywords: [],
+            location: null,
+            remote_preference: "any",
+            min_salary: null,
+            max_listing_age_days: 7,
+            excluded_companies: [],
+            target_seniority: "any",
+        }, logger);
+
+        const filteredUrl = new URL(fetchMock.mock.calls[1][0]);
+        expect(result).toEqual(mockJobs);
+        expect(fetchMock).toHaveBeenCalledTimes(2);
+        expect(filteredUrl.searchParams.get("q")).toBe("Engineer in the last week");
+        expect(filteredUrl.searchParams.get("uds")).toBe("uds-last-week");
+        expect(filteredUrl.searchParams.get("chips")).toBeNull();
+        expect(logger.info).toHaveBeenCalledWith(
+            "serpapi",
+            "Applying listing age filter \"Last week\" for \"Engineer\""
+        );
+        expect(logger.warn).toHaveBeenCalledWith(
+            "serpapi",
+            "Skipping pagination for listing age filtered query \"Engineer in the last week\" because SerpAPI may drop the uds filter when next_page_token is used"
+        );
+    });
+
+    it("uses the discovery results when Date posted filter is unavailable", async () => {
+        const mockJobs = [makeJob()];
+        const fetchMock = vi.fn().mockResolvedValue({
+            ok: true,
+            json: () => Promise.resolve({ jobs_results: mockJobs }),
+        });
+        vi.stubGlobal("fetch", fetchMock);
+
+        const { searchJobs } = await import("./serpapi");
+        const logger = {
+            warn: vi.fn(),
+        } as unknown as PipelineLogger;
+        const result = await searchJobs("Engineer", {
+            id: "f1",
+            user_id: "u1",
+            resume_id: "r1",
+            keywords: [],
+            location: null,
+            remote_preference: "any",
+            min_salary: null,
+            max_listing_age_days: 7,
+            excluded_companies: [],
+            target_seniority: "any",
+        }, logger);
+
+        expect(result).toEqual(mockJobs);
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+        expect(logger.warn).toHaveBeenCalledWith(
+            "serpapi",
+            "SerpAPI did not return a Date posted filter for \"Engineer\"; continuing without listing age filtering"
+        );
     });
 
     it("returns empty array when no jobs_results", async () => {
@@ -173,6 +279,7 @@ describe("searchJobs", () => {
         const { searchJobs } = await import("./serpapi");
         const result = await searchJobs("Engineer", {
             id: "f1",
+            user_id: "u1",
             resume_id: "r1",
             keywords: [],
             location: null,
@@ -200,6 +307,7 @@ describe("searchJobs", () => {
         await expect(
             searchJobs("Engineer", {
                 id: "f1",
+                user_id: "u1",
                 resume_id: "r1",
                 keywords: [],
                 location: null,
@@ -225,6 +333,7 @@ describe("searchJobs", () => {
         await expect(
             searchJobs("Engineer", {
                 id: "f1",
+                user_id: "u1",
                 resume_id: "r1",
                 keywords: [],
                 location: null,
@@ -235,5 +344,40 @@ describe("searchJobs", () => {
                 target_seniority: "any",
             })
         ).rejects.toThrow("SerpAPI error: Invalid key");
+    });
+
+    it("warns and returns empty array when Google hasn't returned any results", async () => {
+        vi.stubGlobal(
+            "fetch",
+            vi.fn().mockResolvedValue({
+                ok: true,
+                json: () => Promise.resolve({
+                    error: "Google hasn't returned any results for this query.",
+                }),
+            })
+        );
+
+        const { searchJobs } = await import("./serpapi");
+        const logger = {
+            warn: vi.fn(),
+        } as unknown as PipelineLogger;
+        const result = await searchJobs("Engineer", {
+            id: "f1",
+            user_id: "u1",
+            resume_id: "r1",
+            keywords: [],
+            location: null,
+            remote_preference: "any",
+            min_salary: null,
+            max_listing_age_days: 7,
+            excluded_companies: [],
+            target_seniority: "any",
+        }, logger);
+
+        expect(result).toEqual([]);
+        expect(logger.warn).toHaveBeenCalledWith(
+            "serpapi",
+            "Google Jobs returned no results for \"Engineer\" on page 1: Google hasn't returned any results for this query."
+        );
     });
 });

@@ -99,7 +99,7 @@ export async function executeJobSearch(
 
         for (const queryStr of queries) {
             try {
-                const jobs = await searchJobs(queryStr, searchFilters);
+                const jobs = await searchJobs(queryStr, searchFilters, logger);
                 serpApiResults += jobs.length;
                 logger.info("serpapi", `Query "${queryStr}": ${jobs.length} results`);
 

@@ -20,7 +20,7 @@ import {
     SlidersHorizontal,
 } from "lucide-react";
 import { toast } from "sonner";
-import { cn, handleApiError, toastApiError } from "@/lib/utils";
+import { handleApiError, toastApiError } from "@/lib/utils";
 
 interface ResumeCardProps {
     resume: Resume;
