@@ -3,7 +3,6 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import Link from "next/link";
 import {
-    Loader2,
     TrendingUp,
     Mail,
     Clock,
@@ -112,7 +111,8 @@ export default function DashboardPage() {
     }, []);
 
     useEffect(() => {
-        fetchCounts();
+        const timeout = window.setTimeout(fetchCounts, 0);
+        return () => window.clearTimeout(timeout);
     }, [fetchCounts]);
 
     if (loading) {

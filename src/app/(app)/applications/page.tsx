@@ -131,7 +131,8 @@ export default function ApplicationsPage() {
     }
 
     useEffect(() => {
-        fetchApplications();
+        const timeout = window.setTimeout(fetchApplications, 0);
+        return () => window.clearTimeout(timeout);
     }, [fetchApplications]);
 
     async function handleSubmit(e: React.FormEvent) {

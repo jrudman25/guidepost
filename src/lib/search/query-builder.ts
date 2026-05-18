@@ -68,22 +68,5 @@ export function buildSerpApiParams(
         params.location = filters.location;
     }
 
-    // Listing age filter (maps to chips parameter)
-    if (filters.max_listing_age_days) {
-        // SerpAPI Google Jobs date filter chip values
-        const ageMap: Record<number, string> = {
-            1: "date_posted:today",
-            3: "date_posted:3days",
-            7: "date_posted:week",
-            14: "date_posted:month",
-            30: "date_posted:month",
-        };
-
-        // Find the closest matching age filter
-        const ages = Object.keys(ageMap).map(Number).sort((a, b) => a - b);
-        const closest = ages.find((a) => a >= filters.max_listing_age_days) || ages[ages.length - 1];
-        params.chips = ageMap[closest];
-    }
-
     return params;
 }

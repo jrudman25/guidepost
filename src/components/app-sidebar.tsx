@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
+import { version } from '../../package.json';
 
 const navigation = [
     { name: "Dashboard", href: "/", icon: LayoutDashboard },
@@ -44,7 +45,7 @@ export function AppSidebar() {
     }, []);
 
     useEffect(() => {
-        fetchCounts();
+        const initialFetchTimeout = window.setTimeout(fetchCounts, 0);
 
         // Fetch user email to control nav visibility
         const supabase = createClient();
@@ -71,6 +72,7 @@ export function AppSidebar() {
         window.addEventListener("savedCountChanged", handleSavedUpdate);
 
         return () => {
+            window.clearTimeout(initialFetchTimeout);
             clearInterval(interval);
             window.removeEventListener("unseenCountChanged", handleUnseenUpdate);
             window.removeEventListener("savedCountChanged", handleSavedUpdate);
@@ -151,7 +153,7 @@ export function AppSidebar() {
                     Log Out
                 </button>
                 <p className="mt-2 px-3 text-xs text-muted-foreground">
-                    Guidepost v0.7.3
+                    Guidepost v{version}
                 </p>
                 <p className="px-3 text-xs text-muted-foreground">
                     Built by{" "}

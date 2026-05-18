@@ -22,6 +22,7 @@ function makeResume(overrides: Partial<ParsedResumeData> = {}): ParsedResumeData
 function makeFilters(overrides: Partial<SearchFilter> = {}): SearchFilter {
     return {
         id: "f1",
+        user_id: "u1",
         resume_id: "r1",
         keywords: [],
         location: null,
@@ -108,27 +109,9 @@ describe("buildSerpApiParams", () => {
         expect(params).not.toHaveProperty("location");
     });
 
-    it("sets date_posted chip for 1-day listing age", () => {
-        const filters = makeFilters({ max_listing_age_days: 1 });
-        const params = buildSerpApiParams("Engineer", filters);
-        expect(params.chips).toBe("date_posted:today");
-    });
-
-    it("sets date_posted chip for 7-day listing age", () => {
+    it("does not send deprecated chips for listing age", () => {
         const filters = makeFilters({ max_listing_age_days: 7 });
         const params = buildSerpApiParams("Engineer", filters);
-        expect(params.chips).toBe("date_posted:week");
-    });
-
-    it("maps intermediate ages to the closest larger bucket", () => {
-        const filters = makeFilters({ max_listing_age_days: 5 });
-        const params = buildSerpApiParams("Engineer", filters);
-        expect(params.chips).toBe("date_posted:week");
-    });
-
-    it("maps large ages to the month bucket", () => {
-        const filters = makeFilters({ max_listing_age_days: 20 });
-        const params = buildSerpApiParams("Engineer", filters);
-        expect(params.chips).toBe("date_posted:month");
+        expect(params).not.toHaveProperty("chips");
     });
 });

@@ -39,6 +39,20 @@ function getScoreColor(score: number | null): string {
     return "bg-red-500/15 text-red-400 border-red-500/30";
 }
 
+function formatPostedAt(postedAt: string | null): string | null {
+    if (!postedAt) return null;
+
+    const posted = new Date(postedAt);
+    if (Number.isNaN(posted.getTime())) return null;
+
+    const days = Math.floor((Date.now() - posted.getTime()) / (1000 * 60 * 60 * 24));
+    if (days <= 0) return "Posted today";
+    if (days === 1) return "Posted 1 day ago";
+    if (days < 30) return `Posted ${days} days ago`;
+
+    return `Posted ${posted.toLocaleDateString()}`;
+}
+
 export default function InboxPage() {
     const [jobs, setJobs] = useState<JobListing[]>([]);
     const [totalJobs, setTotalJobs] = useState(0);
@@ -100,7 +114,10 @@ export default function InboxPage() {
     }, []);
 
     useEffect(() => {
-        fetchJobs(activeTab === "all" ? undefined : activeTab, page, debouncedSearch, sortBy, unseenOnly);
+        const timeout = window.setTimeout(() => {
+            fetchJobs(activeTab === "all" ? undefined : activeTab, page, debouncedSearch, sortBy, unseenOnly);
+        }, 0);
+        return () => window.clearTimeout(timeout);
     }, [activeTab, fetchJobs, page, debouncedSearch, sortBy, unseenOnly]);
 
     // Debounce search input
@@ -493,6 +510,12 @@ export default function InboxPage() {
                                                         {job.salary_info}
                                                     </span>
                                                 )}
+                                                {formatPostedAt(job.posted_at) && (
+                                                    <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                                                        <Clock className="h-3 w-3" />
+                                                        {formatPostedAt(job.posted_at)}
+                                                    </span>
+                                                )}
                                                 {job.status === "saved" && (() => {
                                                     const days = Math.floor(
                                                         (Date.now() - new Date(job.discovered_at).getTime()) / (1000 * 60 * 60 * 24)
@@ -578,6 +601,12 @@ export default function InboxPage() {
                                     <Badge variant="secondary">
                                         <DollarSign className="mr-1 h-3 w-3" />
                                         {selectedJob.salary_info}
+                                    </Badge>
+                                )}
+                                {formatPostedAt(selectedJob.posted_at) && (
+                                    <Badge variant="secondary">
+                                        <Clock className="mr-1 h-3 w-3" />
+                                        {formatPostedAt(selectedJob.posted_at)}
                                     </Badge>
                                 )}
                             </div>

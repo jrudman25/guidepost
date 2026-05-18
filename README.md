@@ -5,7 +5,7 @@ A full-stack job search management tool that automatically finds job listings ma
 ## What It Does
 
 1. **Upload a resume** (PDF) — Gemini extracts your skills, titles, experience, and industries
-2. **Configure search filters** — location, remote preference, seniority level, keywords, excluded companies, listing age
+2. **Configure search filters** — location, remote preference, seniority level, keywords, excluded companies, and listing age
 3. **Auto-discover jobs** — a daily cron job queries Google Jobs via SerpAPI, deduplicates results, and filters by your preferences
 4. **AI match scoring** — jobs are scored 0–100 in batches against your resume with written explanations
 5. **Track applications** — move jobs through a pipeline (applied → screening → interview → offer / rejected / ghosted) with "furthest stage reached" tracking for granular rejection analytics
@@ -74,6 +74,7 @@ src/
 - **Shared search executor** — the cron job and the "Search Now" button both call `executeJobSearch` directly, avoiding HTTP round-trips and auth issues
 - **Row Level Security** — Supabase RLS policies enforce per-user data isolation at the database level; the demo account's data is completely separate
 - **Structured pipeline logging** — search runs produce categorized markdown logs (SerpAPI results, filtering summaries, score distributions, errors) persisted to Supabase Storage with 14-day retention
+- **SerpAPI compatibility** — Google Jobs listing-age filtering uses dynamic `uds` filters returned by SerpAPI instead of deprecated `chips` filters, paginates for broader recall, and discards results whose parsed posting age exceeds the configured limit
 - **Database-level status tracking** — a PostgreSQL `BEFORE UPDATE` trigger logs every application status change to `status_history`, updates `status_updated_at`, and auto-advances `furthest_stage` (the highest pipeline stage reached, used for rejection funnel analytics)
 - **Batched deduplication** — URL-based dedup uses a single `IN` query per search instead of per-job queries, with a `Set` for O(1) cross-query tracking
 - **Graceful AI fallbacks** — a three-model fallback chain (Gemini 3 Flash → 2.5 Flash → 3.1 Flash Lite) ensures API calls succeed even during outages; if all models fail during scoring, jobs default to a score of 50
