@@ -112,16 +112,18 @@ export async function searchJobs(
             break;
         }
 
-        const jobs = data.jobs_results || [];
+        const rawJobs = data.jobs_results || [];
+        const jobs = filterJobsByListingAge(
+            rawJobs,
+            filters.max_listing_age_days,
+            logger,
+            searchQuery
+        );
         allJobs.push(...jobs);
 
         // Stop if no more pages
         nextPageToken = data.serpapi_pagination?.next_page_token;
-        if (uds && nextPageToken) {
-            logger?.warn("serpapi", `Skipping pagination for listing age filtered query "${searchQuery}" because SerpAPI may drop the uds filter when next_page_token is used`);
-            break;
-        }
-        if (!nextPageToken || jobs.length === 0) break;
+        if (!nextPageToken || rawJobs.length === 0) break;
     }
 
     return allJobs;
@@ -172,6 +174,73 @@ function findListingAgeFilter(
     return datePostedFilter?.options?.find((option) => option.name === target.name) || null;
 }
 
+function filterJobsByListingAge(
+    jobs: SerpApiJob[],
+    maxListingAgeDays: number,
+    logger: PipelineLogger | undefined,
+    query: string
+): SerpApiJob[] {
+    if (maxListingAgeDays <= 0) return jobs;
+
+    const filtered = jobs.filter((job) => {
+        const postedAt = parseSerpApiPostedAt(job.detected_extensions?.posted_at);
+        if (!postedAt) return true;
+
+        const ageMs = Date.now() - postedAt.getTime();
+        const maxAgeMs = maxListingAgeDays * 24 * 60 * 60 * 1000;
+        return ageMs <= maxAgeMs;
+    });
+
+    const skipped = jobs.length - filtered.length;
+    if (skipped > 0) {
+        logger?.info("filtering", `Skipped ${skipped} job(s) older than ${maxListingAgeDays} day(s) for "${query}"`);
+    }
+
+    return filtered;
+}
+
+function parseSerpApiPostedAt(postedAt: string | undefined): Date | null {
+    if (!postedAt) return null;
+
+    const normalized = postedAt.trim().toLowerCase();
+    const now = Date.now();
+
+    if (
+        normalized === "today" ||
+        normalized === "just posted" ||
+        normalized === "recently" ||
+        normalized === "new"
+    ) {
+        return new Date(now);
+    }
+
+    if (normalized === "yesterday") {
+        return new Date(now - 24 * 60 * 60 * 1000);
+    }
+
+    const match = normalized.match(/^(\d+|\ba\b|an)\+?\s+(minute|minutes|hour|hours|day|days|week|weeks|month|months)\s+ago$/);
+    if (!match) return null;
+
+    const amount = match[1] === "a" || match[1] === "an"
+        ? 1
+        : Number(match[1]);
+    const unit = match[2];
+    const multipliers: Record<string, number> = {
+        minute: 60 * 1000,
+        minutes: 60 * 1000,
+        hour: 60 * 60 * 1000,
+        hours: 60 * 60 * 1000,
+        day: 24 * 60 * 60 * 1000,
+        days: 24 * 60 * 60 * 1000,
+        week: 7 * 24 * 60 * 60 * 1000,
+        weeks: 7 * 24 * 60 * 60 * 1000,
+        month: 30 * 24 * 60 * 60 * 1000,
+        months: 30 * 24 * 60 * 60 * 1000,
+    };
+
+    return new Date(now - amount * multipliers[unit]);
+}
+
 /**
  * Normalize a SerpAPI job result into our database format.
  */
@@ -201,7 +270,7 @@ export function normalizeJob(
         description: job.description || null,
         url: applyLink,
         source: "google_jobs",
-        posted_at: null, // SerpAPI gives relative times like "3 days ago", not ISO dates
+        posted_at: parseSerpApiPostedAt(job.detected_extensions?.posted_at)?.toISOString() || null,
         is_remote: detectRemote(job),
         salary_info: job.detected_extensions?.salary || null,
     };

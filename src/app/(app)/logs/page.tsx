@@ -45,7 +45,8 @@ export default function LogsPage() {
     }
 
     useEffect(() => {
-        fetchLogs();
+        const timeout = window.setTimeout(fetchLogs, 0);
+        return () => window.clearTimeout(timeout);
     }, []);
 
     // Format a YYYY-MM-DD date string nicely

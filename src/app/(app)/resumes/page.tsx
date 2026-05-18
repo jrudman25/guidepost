@@ -23,7 +23,8 @@ export default function ResumesPage() {
     }, []);
 
     useEffect(() => {
-        fetchResumes();
+        const timeout = window.setTimeout(fetchResumes, 0);
+        return () => window.clearTimeout(timeout);
     }, [fetchResumes]);
 
     return (

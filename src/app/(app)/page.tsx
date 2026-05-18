@@ -111,7 +111,8 @@ export default function DashboardPage() {
     }, []);
 
     useEffect(() => {
-        fetchCounts();
+        const timeout = window.setTimeout(fetchCounts, 0);
+        return () => window.clearTimeout(timeout);
     }, [fetchCounts]);
 
     if (loading) {
