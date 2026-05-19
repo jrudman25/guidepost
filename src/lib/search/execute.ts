@@ -9,6 +9,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 const LOW_MATCH_SCORE_THRESHOLD = 50;
 const AUTO_DISCARD_SCORE_THRESHOLD = 25;
+const MAX_SERPAPI_CALLS_PER_RUN = 8;
 
 interface NormalizedCandidate {
     normalized: ReturnType<typeof normalizeJob>;
@@ -67,6 +68,7 @@ export async function executeJobSearch(
     logger.info("setup", `Found ${resumes.length} active resume(s) to search`);
 
     let totalNewJobs = 0;
+    let estimatedSerpApiCalls = 0;
 
     for (const resume of resumes) {
         const parsed = resume.parsed_data as ParsedResumeData;
@@ -108,6 +110,13 @@ export async function executeJobSearch(
         let skippedLocation = 0;
 
         for (const queryStr of queries) {
+            const estimatedCallsForQuery = searchFilters.max_listing_age_days > 0 ? 2 : 1;
+            if (estimatedSerpApiCalls + estimatedCallsForQuery > MAX_SERPAPI_CALLS_PER_RUN) {
+                logger.warn("serpapi", `Skipping query "${queryStr}" to stay within the ${MAX_SERPAPI_CALLS_PER_RUN}-call SerpAPI budget for this run`);
+                continue;
+            }
+            estimatedSerpApiCalls += estimatedCallsForQuery;
+
             try {
                 const jobs = await searchJobs(queryStr, searchFilters, logger);
                 serpApiResults += jobs.length;
@@ -262,7 +271,7 @@ export async function executeJobSearch(
         await persistCheckpoint();
     }
 
-    logger.info("summary", `Search complete: ${totalNewJobs} new jobs found across ${resumes.length} resume(s)`);
+    logger.info("summary", `Search complete: ${totalNewJobs} new jobs found across ${resumes.length} resume(s); estimated SerpAPI calls used: ${estimatedSerpApiCalls}/${MAX_SERPAPI_CALLS_PER_RUN}`);
     await persistCheckpoint();
 
     return {

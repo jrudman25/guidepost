@@ -45,9 +45,9 @@ interface SerpApiFilterOption {
 
 /**
  * Search for jobs using SerpAPI's Google Jobs engine.
- * Fetches up to MAX_PAGES pages (10 results each) to get more results.
+ * Fetches up to MAX_PAGES pages (10 results each).
  */
-const MAX_PAGES = 5;
+const MAX_PAGES = 1;
 const LISTING_AGE_OPTIONS = [
     { maxDays: 1, name: "Yesterday" },
     { maxDays: 3, name: "Last 3 days" },
