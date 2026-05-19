@@ -17,6 +17,7 @@ const RETENTION_DAYS = 14;
 export class PipelineLogger {
     private entries: LogEntry[] = [];
     private startTime: Date;
+    private persistedEntryCount = 0;
 
     constructor() {
         this.startTime = new Date();
@@ -57,12 +58,16 @@ export class PipelineLogger {
      * Format entries as readable markdown.
      */
     toMarkdown(): string {
+        return this.formatEntries(this.entries);
+    }
+
+    private formatEntries(entries: LogEntry[]): string {
         const endTime = new Date();
         const durationMs = endTime.getTime() - this.startTime.getTime();
         const durationSec = (durationMs / 1000).toFixed(1);
 
-        const errorCount = this.entries.filter((e) => e.level === "error").length;
-        const warnCount = this.entries.filter((e) => e.level === "warn").length;
+        const errorCount = entries.filter((e) => e.level === "error").length;
+        const warnCount = entries.filter((e) => e.level === "warn").length;
 
         const lines: string[] = [];
         lines.push(`## Search Run \u2014 ${this.startTime.toLocaleString("en-US", { timeZone: "America/Los_Angeles" })}`);
@@ -70,21 +75,21 @@ export class PipelineLogger {
         lines.push(`| Metric | Value |`);
         lines.push(`|--------|-------|`);
         lines.push(`| Duration | ${durationSec}s |`);
-        lines.push(`| Log entries | ${this.entries.length} |`);
+        lines.push(`| Log entries | ${entries.length} |`);
         lines.push(`| Errors | ${errorCount} |`);
         lines.push(`| Warnings | ${warnCount} |`);
         lines.push("");
 
-        if (this.entries.length === 0) {
+        if (entries.length === 0) {
             lines.push("_No log entries recorded._");
             return lines.join("\n");
         }
 
         // Group by category for readability
-        const categories = [...new Set(this.entries.map((e) => e.category))];
+        const categories = [...new Set(entries.map((e) => e.category))];
 
         for (const category of categories) {
-            const catEntries = this.entries.filter((e) => e.category === category);
+            const catEntries = entries.filter((e) => e.category === category);
             lines.push(`### ${category}`);
             lines.push("");
 
@@ -104,12 +109,13 @@ export class PipelineLogger {
      * Appends to the existing file if one exists for today.
      */
     async persist(supabase: SupabaseClient): Promise<void> {
-        if (this.entries.length === 0) return;
+        const entriesToPersist = this.entries.slice(this.persistedEntryCount);
+        if (entriesToPersist.length === 0) return;
 
         try {
             const today = new Date().toISOString().split("T")[0]; // YYYY-MM-DD
             const filePath = `${today}.md`;
-            const newContent = this.toMarkdown();
+            const newContent = this.formatEntries(entriesToPersist);
 
             // Try to read existing log for today
             let existingContent = "";
@@ -137,6 +143,8 @@ export class PipelineLogger {
 
             if (error) {
                 console.error("[pipeline-log] Failed to persist log:", error.message);
+            } else {
+                this.persistedEntryCount = this.entries.length;
             }
         } catch (err) {
             console.error("[pipeline-log] Error persisting log:", err);

@@ -21,10 +21,17 @@ interface NormalizedCandidate {
 export async function executeJobSearch(
     resumeId?: string,
     externalClient?: SupabaseClient,
-    excludeUserId?: string
+    excludeUserId?: string,
+    externalLogger?: PipelineLogger
 ): Promise<{ new_jobs_found: number; resumes_searched: number; logger: PipelineLogger }> {
     const supabase = externalClient || await createClient();
-    const logger = new PipelineLogger();
+    const logger = externalLogger || new PipelineLogger();
+    const shouldCheckpoint = Boolean(externalClient && externalLogger);
+    const persistCheckpoint = async () => {
+        if (shouldCheckpoint) {
+            await logger.persist(supabase);
+        }
+    };
 
     // Get resumes to search for
     let query = supabase
@@ -165,6 +172,8 @@ export async function executeJobSearch(
             } catch (searchError) {
                 const msg = searchError instanceof Error ? searchError.message : String(searchError);
                 logger.error("serpapi", `Search error for query "${queryStr}": ${msg}`);
+            } finally {
+                await persistCheckpoint();
             }
         }
 
@@ -176,6 +185,7 @@ export async function executeJobSearch(
         if (skippedRemote > 0) logger.info("filtering", `Skipped ${skippedRemote} non-remote jobs (remote preference)`);
         if (skippedLocation > 0) logger.info("filtering", `Skipped ${skippedLocation} out-of-area jobs (location filter)`);
         logger.info("filtering", `${candidates.length} new candidates to score`);
+        await persistCheckpoint();
 
         if (candidates.length === 0) {
             continue;
@@ -204,6 +214,7 @@ export async function executeJobSearch(
         const highMatches = scores.filter((s) => s >= 80).length;
         const lowMatches = scores.filter((s) => s < 40).length;
         logger.info("scoring", `Score distribution: avg=${avgScore}, high(80+)=${highMatches}, low(<40)=${lowMatches}`);
+        await persistCheckpoint();
 
         // Insert scored jobs into the database
         let insertErrors = 0;
@@ -230,9 +241,11 @@ export async function executeJobSearch(
         }
 
         logger.info("insert", `Inserted ${totalNewJobs} new jobs (${insertErrors} errors)`);
+        await persistCheckpoint();
     }
 
     logger.info("summary", `Search complete: ${totalNewJobs} new jobs found across ${resumes.length} resume(s)`);
+    await persistCheckpoint();
 
     return {
         new_jobs_found: totalNewJobs,
