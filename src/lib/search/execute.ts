@@ -7,6 +7,10 @@ import { PipelineLogger } from "@/lib/pipeline-logger";
 import type { ParsedResumeData, SearchFilter } from "@/lib/types";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+const LOW_MATCH_SCORE_THRESHOLD = 50;
+const AUTO_DISCARD_SCORE_THRESHOLD = 25;
+const MAX_SERPAPI_CALLS_PER_RUN = 8;
+
 interface NormalizedCandidate {
     normalized: ReturnType<typeof normalizeJob>;
     resumeUserId: string;
@@ -21,10 +25,17 @@ interface NormalizedCandidate {
 export async function executeJobSearch(
     resumeId?: string,
     externalClient?: SupabaseClient,
-    excludeUserId?: string
+    excludeUserId?: string,
+    externalLogger?: PipelineLogger
 ): Promise<{ new_jobs_found: number; resumes_searched: number; logger: PipelineLogger }> {
     const supabase = externalClient || await createClient();
-    const logger = new PipelineLogger();
+    const logger = externalLogger || new PipelineLogger();
+    const shouldCheckpoint = Boolean(externalClient && externalLogger);
+    const persistCheckpoint = async () => {
+        if (shouldCheckpoint) {
+            await logger.persist(supabase);
+        }
+    };
 
     // Get resumes to search for
     let query = supabase
@@ -57,6 +68,7 @@ export async function executeJobSearch(
     logger.info("setup", `Found ${resumes.length} active resume(s) to search`);
 
     let totalNewJobs = 0;
+    let estimatedSerpApiCalls = 0;
 
     for (const resume of resumes) {
         const parsed = resume.parsed_data as ParsedResumeData;
@@ -98,6 +110,13 @@ export async function executeJobSearch(
         let skippedLocation = 0;
 
         for (const queryStr of queries) {
+            const estimatedCallsForQuery = searchFilters.max_listing_age_days > 0 ? 2 : 1;
+            if (estimatedSerpApiCalls + estimatedCallsForQuery > MAX_SERPAPI_CALLS_PER_RUN) {
+                logger.warn("serpapi", `Skipping query "${queryStr}" to stay within the ${MAX_SERPAPI_CALLS_PER_RUN}-call SerpAPI budget for this run`);
+                continue;
+            }
+            estimatedSerpApiCalls += estimatedCallsForQuery;
+
             try {
                 const jobs = await searchJobs(queryStr, searchFilters, logger);
                 serpApiResults += jobs.length;
@@ -165,6 +184,8 @@ export async function executeJobSearch(
             } catch (searchError) {
                 const msg = searchError instanceof Error ? searchError.message : String(searchError);
                 logger.error("serpapi", `Search error for query "${queryStr}": ${msg}`);
+            } finally {
+                await persistCheckpoint();
             }
         }
 
@@ -176,6 +197,7 @@ export async function executeJobSearch(
         if (skippedRemote > 0) logger.info("filtering", `Skipped ${skippedRemote} non-remote jobs (remote preference)`);
         if (skippedLocation > 0) logger.info("filtering", `Skipped ${skippedLocation} out-of-area jobs (location filter)`);
         logger.info("filtering", `${candidates.length} new candidates to score`);
+        await persistCheckpoint();
 
         if (candidates.length === 0) {
             continue;
@@ -202,14 +224,29 @@ export async function executeJobSearch(
         const scores = matchResults.map((r) => r.score);
         const avgScore = Math.round(scores.reduce((a, b) => a + b, 0) / scores.length);
         const highMatches = scores.filter((s) => s >= 80).length;
-        const lowMatches = scores.filter((s) => s < 40).length;
-        logger.info("scoring", `Score distribution: avg=${avgScore}, high(80+)=${highMatches}, low(<40)=${lowMatches}`);
+        const lowScoreCount = scores.filter((s) => s < 40).length;
+        logger.info("scoring", `Score distribution: avg=${avgScore}, high(80+)=${highMatches}, low(<40)=${lowScoreCount}`);
+        await persistCheckpoint();
 
         // Insert scored jobs into the database
         let insertErrors = 0;
+        let regularMatches = 0;
+        let lowMatches = 0;
+        let autoDiscarded = 0;
         for (let i = 0; i < candidates.length; i++) {
             const { normalized, resumeUserId } = candidates[i];
             const matchResult = matchResults[i];
+            if (matchResult.score < AUTO_DISCARD_SCORE_THRESHOLD) {
+                autoDiscarded++;
+                logger.info("insert", `Auto-discarded "${normalized.title}" at ${normalized.company}: score ${matchResult.score} below ${AUTO_DISCARD_SCORE_THRESHOLD}`);
+                continue;
+            }
+
+            if (matchResult.score < LOW_MATCH_SCORE_THRESHOLD) {
+                lowMatches++;
+            } else {
+                regularMatches++;
+            }
 
             const { error: insertError } = await supabase
                 .from("job_listings")
@@ -230,9 +267,12 @@ export async function executeJobSearch(
         }
 
         logger.info("insert", `Inserted ${totalNewJobs} new jobs (${insertErrors} errors)`);
+        logger.info("insert", `Score buckets: ${regularMatches} regular matches (>=${LOW_MATCH_SCORE_THRESHOLD}), ${lowMatches} low matches (${AUTO_DISCARD_SCORE_THRESHOLD}-${LOW_MATCH_SCORE_THRESHOLD - 1}), ${autoDiscarded} auto-discarded (<${AUTO_DISCARD_SCORE_THRESHOLD})`);
+        await persistCheckpoint();
     }
 
-    logger.info("summary", `Search complete: ${totalNewJobs} new jobs found across ${resumes.length} resume(s)`);
+    logger.info("summary", `Search complete: ${totalNewJobs} new jobs found across ${resumes.length} resume(s); estimated SerpAPI calls used: ${estimatedSerpApiCalls}/${MAX_SERPAPI_CALLS_PER_RUN}`);
+    await persistCheckpoint();
 
     return {
         new_jobs_found: totalNewJobs,

@@ -230,14 +230,10 @@ describe("searchJobs", () => {
         );
     });
 
-    it("paginates filtered searches and discards jobs older than listing age", async () => {
+    it("does not paginate filtered searches to stay within the SerpAPI budget", async () => {
         const freshJob = makeJob({
             title: "Fresh Engineer",
             detected_extensions: { posted_at: "2 days ago" },
-        });
-        const oldJob = makeJob({
-            title: "Old Engineer",
-            detected_extensions: { posted_at: "14 days ago" },
         });
         const fetchMock = vi.fn()
             .mockResolvedValueOnce({
@@ -257,7 +253,7 @@ describe("searchJobs", () => {
                     ],
                 }),
             })
-            .mockResolvedValueOnce({
+            .mockResolvedValue({
                 ok: true,
                 json: () => Promise.resolve({
                     jobs_results: [freshJob],
@@ -265,10 +261,6 @@ describe("searchJobs", () => {
                         next_page_token: "next-page",
                     },
                 }),
-            })
-            .mockResolvedValueOnce({
-                ok: true,
-                json: () => Promise.resolve({ jobs_results: [oldJob] }),
             });
         vi.stubGlobal("fetch", fetchMock);
 
@@ -289,15 +281,8 @@ describe("searchJobs", () => {
             target_seniority: "any",
         }, logger);
 
-        const secondPageUrl = new URL(fetchMock.mock.calls[2][0]);
         expect(result).toEqual([freshJob]);
-        expect(fetchMock).toHaveBeenCalledTimes(3);
-        expect(secondPageUrl.searchParams.get("next_page_token")).toBe("next-page");
-        expect(secondPageUrl.searchParams.get("uds")).toBe("uds-last-week");
-        expect(logger.info).toHaveBeenCalledWith(
-            "filtering",
-            "Skipped 1 job(s) older than 7 day(s) for \"Engineer in the last week\""
-        );
+        expect(fetchMock).toHaveBeenCalledTimes(2);
     });
 
     it("uses the discovery results when Date posted filter is unavailable", async () => {
