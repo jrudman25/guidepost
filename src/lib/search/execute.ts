@@ -7,6 +7,9 @@ import { PipelineLogger } from "@/lib/pipeline-logger";
 import type { ParsedResumeData, SearchFilter } from "@/lib/types";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+const LOW_MATCH_SCORE_THRESHOLD = 50;
+const AUTO_DISCARD_SCORE_THRESHOLD = 25;
+
 interface NormalizedCandidate {
     normalized: ReturnType<typeof normalizeJob>;
     resumeUserId: string;
@@ -212,15 +215,29 @@ export async function executeJobSearch(
         const scores = matchResults.map((r) => r.score);
         const avgScore = Math.round(scores.reduce((a, b) => a + b, 0) / scores.length);
         const highMatches = scores.filter((s) => s >= 80).length;
-        const lowMatches = scores.filter((s) => s < 40).length;
-        logger.info("scoring", `Score distribution: avg=${avgScore}, high(80+)=${highMatches}, low(<40)=${lowMatches}`);
+        const lowScoreCount = scores.filter((s) => s < 40).length;
+        logger.info("scoring", `Score distribution: avg=${avgScore}, high(80+)=${highMatches}, low(<40)=${lowScoreCount}`);
         await persistCheckpoint();
 
         // Insert scored jobs into the database
         let insertErrors = 0;
+        let regularMatches = 0;
+        let lowMatches = 0;
+        let autoDiscarded = 0;
         for (let i = 0; i < candidates.length; i++) {
             const { normalized, resumeUserId } = candidates[i];
             const matchResult = matchResults[i];
+            if (matchResult.score < AUTO_DISCARD_SCORE_THRESHOLD) {
+                autoDiscarded++;
+                logger.info("insert", `Auto-discarded "${normalized.title}" at ${normalized.company}: score ${matchResult.score} below ${AUTO_DISCARD_SCORE_THRESHOLD}`);
+                continue;
+            }
+
+            if (matchResult.score < LOW_MATCH_SCORE_THRESHOLD) {
+                lowMatches++;
+            } else {
+                regularMatches++;
+            }
 
             const { error: insertError } = await supabase
                 .from("job_listings")
@@ -241,6 +258,7 @@ export async function executeJobSearch(
         }
 
         logger.info("insert", `Inserted ${totalNewJobs} new jobs (${insertErrors} errors)`);
+        logger.info("insert", `Score buckets: ${regularMatches} regular matches (>=${LOW_MATCH_SCORE_THRESHOLD}), ${lowMatches} low matches (${AUTO_DISCARD_SCORE_THRESHOLD}-${LOW_MATCH_SCORE_THRESHOLD - 1}), ${autoDiscarded} auto-discarded (<${AUTO_DISCARD_SCORE_THRESHOLD})`);
         await persistCheckpoint();
     }
 

@@ -69,6 +69,8 @@ export default function InboxPage() {
     const [sortBy, setSortBy] = useState("score");
     const [unseenOnly, setUnseenOnly] = useState(false);
     const debounceRef = useRef<NodeJS.Timeout | null>(null);
+    const statusParam = activeTab === "all" ? undefined : activeTab === "low-match" ? "new" : activeTab;
+    const scoreBandParam = activeTab === "new" ? "regular" : activeTab === "low-match" ? "low" : undefined;
 
     async function markAsSeen(job: JobListing) {
         if (job.seen_at) return; // already seen
@@ -92,7 +94,7 @@ export default function InboxPage() {
         markAsSeen(job);
     }
 
-    const fetchJobs = useCallback(async (status?: string, currentPage = 1, search = "", sort = "score", unseen = false) => {
+    const fetchJobs = useCallback(async (status?: string, currentPage = 1, search = "", sort = "score", unseen = false, scoreBand?: string) => {
         setIsFetching(true);
         try {
             const limit = 20;
@@ -101,6 +103,7 @@ export default function InboxPage() {
             if (status) params.set("status", status);
             if (search) params.set("search", search);
             if (unseen) params.set("unseen", "true");
+            if (scoreBand) params.set("score_band", scoreBand);
             const response = await fetch(`/api/jobs?${params}`);
             const data = await response.json();
             setJobs(data.jobs || []);
@@ -115,10 +118,10 @@ export default function InboxPage() {
 
     useEffect(() => {
         const timeout = window.setTimeout(() => {
-            fetchJobs(activeTab === "all" ? undefined : activeTab, page, debouncedSearch, sortBy, unseenOnly);
+            fetchJobs(statusParam, page, debouncedSearch, sortBy, unseenOnly, scoreBandParam);
         }, 0);
         return () => window.clearTimeout(timeout);
-    }, [activeTab, fetchJobs, page, debouncedSearch, sortBy, unseenOnly]);
+    }, [fetchJobs, page, debouncedSearch, sortBy, unseenOnly, statusParam, scoreBandParam]);
 
     // Debounce search input
     function handleSearchChange(value: string) {
@@ -145,7 +148,7 @@ export default function InboxPage() {
 
             toast.success(`Found ${data.new_jobs_found} new job listings!`);
             setPage(1);
-            fetchJobs(activeTab === "all" ? undefined : activeTab, 1);
+            fetchJobs(statusParam, 1, "", sortBy, unseenOnly, scoreBandParam);
         } catch (error) {
             toast.error(
                 error instanceof Error ? error.message : "Search failed"
@@ -199,7 +202,7 @@ export default function InboxPage() {
                 const maxPage = Math.max(1, Math.ceil(newTotal / 20));
                 const targetPage = page > maxPage ? maxPage : page;
                 setPage(targetPage);
-                fetchJobs(activeTab, targetPage, debouncedSearch, sortBy, unseenOnly);
+                fetchJobs(statusParam, targetPage, debouncedSearch, sortBy, unseenOnly, scoreBandParam);
             } else {
                 setJobs((prev) =>
                     prev.map((j) => (j.id === jobId ? { ...j, status } : j))
@@ -275,7 +278,7 @@ export default function InboxPage() {
                 const maxPage = Math.max(1, Math.ceil(newTotal / 20));
                 const targetPage = page > maxPage ? maxPage : page;
                 setPage(targetPage);
-                fetchJobs(activeTab, targetPage, debouncedSearch, sortBy, unseenOnly);
+                fetchJobs(statusParam, targetPage, debouncedSearch, sortBy, unseenOnly, scoreBandParam);
             } else {
                 setJobs((prev) =>
                     prev.map((j) =>
@@ -336,6 +339,7 @@ export default function InboxPage() {
                 <div className="flex items-center gap-4">
                     <TabsList>
                         <TabsTrigger value="new">New</TabsTrigger>
+                        <TabsTrigger value="low-match">Low Match</TabsTrigger>
                         <TabsTrigger value="saved">Saved</TabsTrigger>
                         <TabsTrigger value="applied">Applied</TabsTrigger>
                         <TabsTrigger value="dismissed">Dismissed</TabsTrigger>
@@ -399,6 +403,8 @@ export default function InboxPage() {
                     <p className="text-muted-foreground">
                         {activeTab === "new"
                             ? "No new job listings. Click 'Search Now' or wait for the daily scan."
+                            : activeTab === "low-match"
+                            ? "No low-match listings."
                             : `No ${activeTab} listings.`}
                     </p>
                 </div>

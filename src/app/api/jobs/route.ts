@@ -15,6 +15,7 @@ export async function GET(request: Request) {
         const limit = parseInt(searchParams.get("limit") || "50");
         const offset = parseInt(searchParams.get("offset") || "0");
         const sort = searchParams.get("sort") || "score";
+        const scoreBand = searchParams.get("score_band");
 
         let query = supabase
             .from("job_listings")
@@ -38,6 +39,12 @@ export async function GET(request: Request) {
 
         if (status) {
             query = query.eq("status", status);
+        }
+
+        if (scoreBand === "regular") {
+            query = query.gte("match_score", 50);
+        } else if (scoreBand === "low") {
+            query = query.gte("match_score", 25).lt("match_score", 50);
         }
 
         const search = searchParams.get("search");
