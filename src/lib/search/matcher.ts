@@ -26,8 +26,11 @@ Score EACH job from 0 to 100 based on:
 
 Seniority matching rules:
 - If the candidate targets "entry" level roles and the job requires senior-level experience (e.g., 5+ years, "lead", "architect", "principal", "staff"), reduce the score significantly (below 30).
+- If the candidate has minimal experience and the job is clearly senior, staff, principal, lead, architect, manager, or requires 4+ years of experience, score it below 25.
 - If the candidate targets "senior" roles and the job is clearly entry/junior level, reduce the score.
 - If the target seniority is "any", treat experience level as a minor factor.
+- Do not treat future cohort or start dates (for example, "2026 Start") as an experience mismatch unless the listing explicitly conflicts with the candidate's availability.
+- Each reasoning must be standalone. Do not reference other listings or labels like "Job 1".
 
 Return ONLY a valid JSON array (no markdown, no code blocks). Each element must correspond to the same job index above:
 [
@@ -57,8 +60,11 @@ Score this job from 0 to 100 based on:
 
 Seniority matching rules:
 - If the candidate targets "entry" level roles and the job requires senior-level experience (e.g., 5+ years, "lead", "architect", "principal", "staff"), reduce the score significantly (below 30).
+- If the candidate has minimal experience and the job is clearly senior, staff, principal, lead, architect, manager, or requires 4+ years of experience, score it below 25.
 - If the candidate targets "senior" roles and the job is clearly entry/junior level, reduce the score.
 - If the target seniority is "any", treat experience level as a minor factor.
+- Do not treat future cohort or start dates (for example, "2026 Start") as an experience mismatch unless the listing explicitly conflicts with the candidate's availability.
+- The reasoning must be standalone. Do not reference other listings or labels like "Job 1".
 
 Return ONLY a valid JSON object (no markdown, no code blocks):
 {
@@ -74,8 +80,45 @@ const SENIORITY_LABELS: Record<string, string> = {
 };
 
 const BATCH_SIZE = 5;
+const LARGE_EXPERIENCE_GAP_SCORE_CAP = 24;
 
 type JobInput = { title: string; company: string; description: string | null };
+
+function sanitizeReasoning(reasoning: unknown): string {
+    const text = typeof reasoning === "string" && reasoning.trim()
+        ? reasoning.trim()
+        : "Could not generate match score - defaulted to 50.";
+
+    return text
+        .replace(/\b(?:just like|similar to|as with|compared with|compared to)\s+job\s+\d+[:,]?\s*/gi, "")
+        .replace(/\bjob\s+\d+\b/gi, "this listing")
+        .trim();
+}
+
+function hasLargeExperienceGap(job: JobInput, resume: ParsedResumeData): boolean {
+    if (resume.years_of_experience > 1) return false;
+
+    const title = job.title.toLowerCase();
+    const description = (job.description || "").toLowerCase();
+    const seniorTitle = /\b(senior|sr\.?|staff|principal|lead|architect|manager|director)\b/.test(title);
+    const requiredYears = [...description.matchAll(/\b(\d+)\+?\s*(?:years|yrs)\b/g)]
+        .map((match) => Number(match[1]))
+        .filter(Number.isFinite);
+
+    return seniorTitle || requiredYears.some((years) => years >= 4);
+}
+
+function normalizeMatchResult(result: Partial<MatchResult>, job: JobInput, resume: ParsedResumeData): MatchResult {
+    let score = Math.max(0, Math.min(100, Math.round(result.score ?? 50)));
+    let reasoning = sanitizeReasoning(result.reasoning);
+
+    if (hasLargeExperienceGap(job, resume) && score > LARGE_EXPERIENCE_GAP_SCORE_CAP) {
+        score = LARGE_EXPERIENCE_GAP_SCORE_CAP;
+        reasoning = `Very large experience mismatch: ${reasoning}`;
+    }
+
+    return { score, reasoning };
+}
 
 /**
  * Score a single job listing against resume data.
@@ -103,10 +146,7 @@ export async function scoreJobMatch(
         const cleaned = text.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
         const parsed = JSON.parse(cleaned) as MatchResult;
 
-        return {
-            score: Math.max(0, Math.min(100, Math.round(parsed.score))),
-            reasoning: parsed.reasoning,
-        };
+        return normalizeMatchResult(parsed, job, resume);
     } catch (error) {
         console.error("Match scoring error:", error);
         return {
@@ -150,21 +190,23 @@ async function scoreBatchSingle(
 
         if (!Array.isArray(parsed) || parsed.length !== jobs.length) {
             const msg = `Expected ${jobs.length} results, got ${Array.isArray(parsed) ? parsed.length : 'non-array'}`;
-            logger?.error("scoring", msg) ?? console.error(`[batch-score] ${msg}`);
+            if (logger) {
+                logger.error("scoring", msg);
+            } else {
+                console.error(`[batch-score] ${msg}`);
+            }
             // Fall back to defaults for any missing entries
-            return jobs.map((_, i) => ({
-                score: Math.max(0, Math.min(100, Math.round(parsed[i]?.score ?? 50))),
-                reasoning: parsed[i]?.reasoning || "Could not generate match score \u2014 defaulted to 50.",
-            }));
+            return jobs.map((job, i) => normalizeMatchResult(Array.isArray(parsed) ? parsed[i] || {} : {}, job, resume));
         }
 
-        return parsed.map((r) => ({
-            score: Math.max(0, Math.min(100, Math.round(r.score))),
-            reasoning: r.reasoning,
-        }));
+        return parsed.map((r, i) => normalizeMatchResult(r, jobs[i], resume));
     } catch (error) {
         const msg = error instanceof Error ? error.message : String(error);
-        logger?.error("scoring", `Batch scoring failed: ${msg}`) ?? console.error("[batch-score] Batch scoring error:", error);
+        if (logger) {
+            logger.error("scoring", `Batch scoring failed: ${msg}`);
+        } else {
+            console.error("[batch-score] Batch scoring error:", error);
+        }
         return jobs.map(() => ({
             score: 50,
             reasoning: "Could not generate match score \u2014 defaulted to 50.",
@@ -198,8 +240,11 @@ export async function scoreJobBatch(
         const chunk = jobs.slice(i, i + BATCH_SIZE);
         const batchNum = Math.floor(i / BATCH_SIZE) + 1;
         const totalBatches = Math.ceil(jobs.length / BATCH_SIZE);
-        logger?.info("scoring", `Batch ${batchNum}/${totalBatches}: scoring ${chunk.length} jobs`) ??
+        if (logger) {
+            logger.info("scoring", `Batch ${batchNum}/${totalBatches}: scoring ${chunk.length} jobs`);
+        } else {
             console.log(`[batch-score] Scoring batch ${batchNum}/${totalBatches} (${chunk.length} jobs)`);
+        }
 
         const results = await scoreBatchSingle(chunk, resume, targetSeniority, logger);
         allResults.push(...results);

@@ -27,6 +27,15 @@ describe("detectRemote", () => {
         expect(detectRemote(job)).toBe(true);
     });
 
+    it("returns false when description explicitly says in-person only", () => {
+        const job = makeJob({
+            title: "Remote Software Engineer",
+            description: "This role is in-person only and remote work is not available.",
+            detected_extensions: { work_from_home: true },
+        });
+        expect(detectRemote(job)).toBe(false);
+    });
+
     it("returns true when title contains 'remote'", () => {
         const job = makeJob({ title: "Remote Software Engineer" });
         expect(detectRemote(job)).toBe(true);

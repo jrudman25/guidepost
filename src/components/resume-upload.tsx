@@ -61,8 +61,6 @@ export function ResumeUpload({ onUploadComplete }: ResumeUploadProps) {
                 body: formData,
             });
 
-            const data = await response.json();
-
             await handleApiError(response, "Upload failed");
 
             toast.success("Resume uploaded and parsed successfully!");
