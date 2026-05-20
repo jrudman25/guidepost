@@ -71,6 +71,7 @@ export default function InboxPage() {
     const debounceRef = useRef<NodeJS.Timeout | null>(null);
     const statusParam = activeTab === "all" ? undefined : activeTab === "low-match" ? "new" : activeTab;
     const scoreBandParam = activeTab === "new" ? "regular" : activeTab === "low-match" ? "low" : undefined;
+    const isRegularNewJob = (job: JobListing) => job.status === "new" && (job.match_score ?? 0) >= 50;
 
     async function markAsSeen(job: JobListing) {
         if (job.seen_at) return; // already seen
@@ -80,13 +81,24 @@ export default function InboxPage() {
             prev.map((j) => (j.id === job.id ? { ...j, seen_at: now } : j))
         );
         // Immediately update sidebar badge
-        window.dispatchEvent(new CustomEvent("unseenCountChanged", { detail: -1 }));
+        if (isRegularNewJob(job)) {
+            window.dispatchEvent(new CustomEvent("unseenCountChanged", { detail: -1 }));
+        }
         // Fire and forget — non-critical update
         fetch(`/api/jobs/${job.id}`, {
             method: "PATCH",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ seen_at: now }),
         }).catch(() => { });
+
+        if (unseenOnly) {
+            const newTotal = totalJobs - 1;
+            const maxPage = Math.max(1, Math.ceil(newTotal / 20));
+            const targetPage = page > maxPage ? maxPage : page;
+            setTotalJobs((prev) => Math.max(0, prev - 1));
+            setPage(targetPage);
+            fetchJobs(statusParam, targetPage, debouncedSearch, sortBy, true, scoreBandParam);
+        }
     }
 
     function selectJob(job: JobListing) {
@@ -165,7 +177,7 @@ export default function InboxPage() {
         try {
             // Check if this unseen job is leaving "new" status
             const job = jobs.find((j) => j.id === jobId);
-            const wasUnseen = job && !job.seen_at && job.status === "new";
+            const wasUnseen = job && !job.seen_at && isRegularNewJob(job);
 
             const now = new Date().toISOString();
 
@@ -257,7 +269,7 @@ export default function InboxPage() {
 
             // Count unseen "new" jobs in the selection for sidebar update
             const unseenCount = jobs.filter(
-                (j) => selectedIds.has(j.id) && !j.seen_at && j.status === "new"
+                (j) => selectedIds.has(j.id) && !j.seen_at && isRegularNewJob(j)
             ).length;
             if (unseenCount > 0) {
                 window.dispatchEvent(new CustomEvent("unseenCountChanged", { detail: -unseenCount }));

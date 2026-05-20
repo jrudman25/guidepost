@@ -13,7 +13,8 @@ export async function GET() {
             .from("job_listings")
             .select("*", { count: "exact", head: true })
             .is("seen_at", null)
-            .eq("status", "new");
+            .eq("status", "new")
+            .gte("match_score", 50);
 
         if (error) {
             return NextResponse.json({ error: error.message }, { status: 500 });
@@ -22,7 +23,15 @@ export async function GET() {
         const { count: totalNewCount } = await supabase
             .from("job_listings")
             .select("*", { count: "exact", head: true })
-            .eq("status", "new");
+            .eq("status", "new")
+            .gte("match_score", 50);
+
+        const { count: lowMatchCount } = await supabase
+            .from("job_listings")
+            .select("*", { count: "exact", head: true })
+            .eq("status", "new")
+            .gte("match_score", 25)
+            .lt("match_score", 50);
 
         const { count: savedCount } = await supabase
             .from("job_listings")
@@ -32,6 +41,7 @@ export async function GET() {
         return NextResponse.json({
             count: unseenCount ?? 0,
             totalNew: totalNewCount ?? 0,
+            lowMatchCount: lowMatchCount ?? 0,
             savedCount: savedCount ?? 0,
         });
     } catch (error) {

@@ -236,13 +236,11 @@ export async function executeJobSearch(
         for (let i = 0; i < candidates.length; i++) {
             const { normalized, resumeUserId } = candidates[i];
             const matchResult = matchResults[i];
-            if (matchResult.score < AUTO_DISCARD_SCORE_THRESHOLD) {
-                autoDiscarded++;
-                logger.info("insert", `Auto-discarded "${normalized.title}" at ${normalized.company}: score ${matchResult.score} below ${AUTO_DISCARD_SCORE_THRESHOLD}`);
-                continue;
-            }
+            const shouldAutoDiscard = matchResult.score < AUTO_DISCARD_SCORE_THRESHOLD;
 
-            if (matchResult.score < LOW_MATCH_SCORE_THRESHOLD) {
+            if (shouldAutoDiscard) {
+                autoDiscarded++;
+            } else if (matchResult.score < LOW_MATCH_SCORE_THRESHOLD) {
                 lowMatches++;
             } else {
                 regularMatches++;
@@ -255,11 +253,17 @@ export async function executeJobSearch(
                     user_id: resumeUserId,
                     match_score: matchResult.score,
                     match_reasoning: matchResult.reasoning,
-                    status: "new",
+                    status: shouldAutoDiscard ? "dismissed" : "new",
+                    seen_at: shouldAutoDiscard ? new Date().toISOString() : null,
                 });
 
             if (!insertError) {
-                totalNewJobs++;
+                if (!shouldAutoDiscard) {
+                    totalNewJobs++;
+                }
+                if (shouldAutoDiscard) {
+                    logger.info("insert", `Auto-dismissed "${normalized.title}" at ${normalized.company}: score ${matchResult.score} below ${AUTO_DISCARD_SCORE_THRESHOLD}`);
+                }
             } else {
                 insertErrors++;
                 logger.error("insert", `Failed to insert "${normalized.title}": ${insertError.message}`);
@@ -267,7 +271,7 @@ export async function executeJobSearch(
         }
 
         logger.info("insert", `Inserted ${totalNewJobs} new jobs (${insertErrors} errors)`);
-        logger.info("insert", `Score buckets: ${regularMatches} regular matches (>=${LOW_MATCH_SCORE_THRESHOLD}), ${lowMatches} low matches (${AUTO_DISCARD_SCORE_THRESHOLD}-${LOW_MATCH_SCORE_THRESHOLD - 1}), ${autoDiscarded} auto-discarded (<${AUTO_DISCARD_SCORE_THRESHOLD})`);
+        logger.info("insert", `Score buckets: ${regularMatches} regular matches (>=${LOW_MATCH_SCORE_THRESHOLD}), ${lowMatches} low matches (${AUTO_DISCARD_SCORE_THRESHOLD}-${LOW_MATCH_SCORE_THRESHOLD - 1}), ${autoDiscarded} auto-dismissed (<${AUTO_DISCARD_SCORE_THRESHOLD})`);
         await persistCheckpoint();
     }
 
