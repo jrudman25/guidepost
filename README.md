@@ -27,7 +27,7 @@ A full-stack job search management tool that automatically finds job listings ma
 | Job Data | SerpAPI (Google Jobs engine) |
 | Styling | Tailwind CSS 4 + Shadcn UI |
 | Charts | Recharts |
-| Testing | Vitest (115 unit tests) |
+| Testing | Vitest (119 unit tests) |
 | Hosting | Vercel (with Cron for daily search) |
 
 ## Architecture
