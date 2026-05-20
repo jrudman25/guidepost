@@ -7,7 +7,7 @@ A full-stack job search management tool that automatically finds job listings ma
 1. **Upload a resume** (PDF) — Gemini extracts your skills, titles, experience, and industries
 2. **Configure search filters** — location, remote preference, seniority level, keywords, excluded companies, and listing age
 3. **Auto-discover jobs** — a daily cron job queries Google Jobs via SerpAPI, deduplicates results, and filters by your preferences
-4. **AI match scoring** — jobs are scored 0–100 in batches against your resume with written explanations; low matches are separated and very low matches are auto-discarded
+4. **AI match scoring** — jobs are scored 0–100 in batches against your resume with written explanations; low matches are separated and very low matches are auto-dismissed
 5. **Track applications** — move jobs through a pipeline (applied → screening → interview → offer / rejected / ghosted) with "furthest stage reached" tracking for granular rejection analytics
 6. **Search, sort & filter** — debounced search bars and sort dropdowns (by score, date, title, company) on both the job inbox and applications pages, combined with tab/status filters and paginated results
 7. **Saved job reminders** — amber badge on the sidebar shows saved count, and saved job cards display color-coded aging indicators (green ≤3 days, amber 4–7 days, red >7 days)
@@ -27,7 +27,7 @@ A full-stack job search management tool that automatically finds job listings ma
 | Job Data | SerpAPI (Google Jobs engine) |
 | Styling | Tailwind CSS 4 + Shadcn UI |
 | Charts | Recharts |
-| Testing | Vitest (119 unit tests) |
+| Testing | Vitest (123 unit tests) |
 | Hosting | Vercel (with Cron for daily search) |
 
 ## Architecture
@@ -70,7 +70,7 @@ src/
 
 ## Key Design Decisions
 
-- **Batch AI scoring** — multiple jobs are scored in a single Gemini API call (batches of 5) to stay within rate limits while maintaining score quality; scores 25–49 are shown in a Low Match inbox tab, while scores below 25 are auto-discarded and logged
+- **Batch AI scoring** — multiple jobs are scored in a single Gemini API call (batches of 5) to stay within rate limits while maintaining score quality; scores 25–49 are shown in a Low Match inbox tab, while scores below 25 are marked dismissed, marked seen, and logged
 - **Shared search executor** — the cron job and the "Search Now" button both call `executeJobSearch` directly, avoiding HTTP round-trips and auth issues
 - **Row Level Security** — Supabase RLS policies enforce per-user data isolation at the database level; the demo account's data is completely separate
 - **Structured pipeline logging** — search runs produce categorized markdown logs (SerpAPI results, filtering summaries, score distributions, errors) persisted to Supabase Storage with 14-day retention

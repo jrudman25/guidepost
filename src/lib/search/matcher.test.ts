@@ -64,6 +64,37 @@ describe("scoreJobMatch", () => {
         expect(result.score).toBe(100);
     });
 
+    it("caps clear senior role matches for candidates with 1 year of experience", async () => {
+        mockGenerate.mockResolvedValue(
+            { text: JSON.stringify({ score: 82, reasoning: "Strong technical overlap." }), model: "test-model" }
+        );
+
+        const seniorJob = {
+            title: "Senior Frontend Developer",
+            company: "Acme Corp",
+            description: "Build React apps with TypeScript.",
+        };
+
+        const result = await scoreJobMatch(seniorJob, makeResume({ years_of_experience: 1 }));
+        expect(result.score).toBe(24);
+        expect(result.reasoning).toContain("Very large experience mismatch");
+    });
+
+    it("does not treat future start dates as an experience mismatch", async () => {
+        mockGenerate.mockResolvedValue(
+            { text: JSON.stringify({ score: 78, reasoning: "Good skills match for the role." }), model: "test-model" }
+        );
+
+        const startDateJob = {
+            title: "Software Engineer, 2026 Start",
+            company: "Acme Corp",
+            description: "Build React apps with TypeScript.",
+        };
+
+        const result = await scoreJobMatch(startDateJob, makeResume({ years_of_experience: 1 }));
+        expect(result.score).toBe(78);
+    });
+
     it("clamps scores below 0", async () => {
         mockGenerate.mockResolvedValue(
             { text: JSON.stringify({ score: -10, reasoning: "No match." }), model: "test-model" }
@@ -90,6 +121,16 @@ describe("scoreJobMatch", () => {
         const result = await scoreJobMatch(sampleJob, makeResume());
         expect(result.score).toBe(60);
         expect(result.reasoning).toBe("Decent match.");
+    });
+
+    it("removes references to other batch listings from reasoning", async () => {
+        mockGenerate.mockResolvedValue(
+            { text: JSON.stringify({ score: 70, reasoning: "Just like Job 1, this role has solid React overlap." }), model: "test-model" }
+        );
+
+        const result = await scoreJobMatch(sampleJob, makeResume());
+        expect(result.reasoning).toBe("this role has solid React overlap.");
+        expect(result.reasoning).not.toContain("Job 1");
     });
 
     it("returns default score of 50 on Gemini failure", async () => {
@@ -132,11 +173,8 @@ describe("scoreJobMatch", () => {
 
         await scoreJobMatch(longJob, makeResume());
         const prompt = mockGenerate.mock.calls[0][0] as string;
-        // The description in the prompt should be truncated
-        const descStart = prompt.indexOf("x".repeat(100));
-        const remaining = prompt.substring(descStart);
-        // Should not contain the full 5000 chars
-        expect(remaining.length).toBeLessThan(3000);
+        expect(prompt).toContain("x".repeat(2000));
+        expect(prompt).not.toContain("x".repeat(2001));
     });
 });
 

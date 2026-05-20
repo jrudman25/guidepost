@@ -16,6 +16,24 @@ const REMOTE_KEYWORDS = [
     "remote-first",
 ];
 
+const IN_PERSON_ONLY_KEYWORDS = [
+    "in-person only",
+    "in person only",
+    "onsite only",
+    "on-site only",
+    "office only",
+    "not remote",
+    "no remote",
+    "remote work is not available",
+    "remote work not available",
+    "must be onsite",
+    "must be on-site",
+    "must work onsite",
+    "must work on-site",
+    "must be in office",
+    "must be in the office",
+];
+
 /**
  * US state abbreviations to full names for flexible matching.
  */
@@ -40,13 +58,18 @@ const US_STATES: Record<string, string> = {
  * title, or description keywords.
  */
 export function detectRemote(job: SerpApiJob): boolean {
+    const text = `${job.title} ${job.description || ""}`.toLowerCase();
+
+    if (IN_PERSON_ONLY_KEYWORDS.some((kw) => text.includes(kw))) {
+        return false;
+    }
+
     // Trust SerpAPI flag first
     if (job.detected_extensions?.work_from_home) {
         return true;
     }
 
     // Scan title and description for remote keywords
-    const text = `${job.title} ${job.description || ""}`.toLowerCase();
     return REMOTE_KEYWORDS.some((kw) => text.includes(kw));
 }
 
