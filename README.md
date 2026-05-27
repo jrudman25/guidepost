@@ -139,7 +139,7 @@ npm test
 
 4. **(Optional) Demo account** — To set up a read-only demo mode:
    - Create a user with email `demo@guidepostai.app` in Supabase Auth
-   - Run `npx tsx scripts/seed-demo.ts` to populate sample data (this only affects the demo account via RLS)
+   - Run `npx tsx scripts/seed-demo.ts` to populate sample data with curated demo jobs (this only affects the demo account via RLS and an explicit demo user filter)
 
 > **Note:** The `supabase/migrations/` directory contains the historical incremental migrations used during development. For fresh installs, use `supabase/setup.sql` instead.
 

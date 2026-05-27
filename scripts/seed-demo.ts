@@ -26,10 +26,10 @@ async function seed() {
     console.log("Logged in as Demo User:", userId);
 
     console.log("Cleaning up existing demo data...");
-    await supabase.from("applications").delete().neq("id", "00000000-0000-0000-0000-000000000000");
-    await supabase.from("job_listings").delete().neq("id", "00000000-0000-0000-0000-000000000000");
-    await supabase.from("search_filters").delete().neq("id", "00000000-0000-0000-0000-000000000000");
-    await supabase.from("resumes").delete().neq("id", "00000000-0000-0000-0000-000000000000");
+    await supabase.from("applications").delete().eq("user_id", userId);
+    await supabase.from("job_listings").delete().eq("user_id", userId);
+    await supabase.from("search_filters").delete().eq("user_id", userId);
+    await supabase.from("resumes").delete().eq("user_id", userId);
 
     console.log("Inserting mock resume...");
     const { data: resumeData, error: resumeErr } = await supabase.from("resumes").insert({
@@ -69,24 +69,133 @@ async function seed() {
     const now = new Date();
 
     console.log("Inserting job listings...");
-    const jobsToInsert = [
-        ...Array.from({ length: 15 }).map((_, i) => ({
+    const demoJobs = [
+        {
+            title: "Senior Frontend Engineer",
+            company: "Vercel",
+            location: "Remote (United States)",
+            source: "Company Site",
+            match_score: 94,
+            salary_info: "$165k - $210k",
+            is_remote: true
+        },
+        {
+            title: "Full Stack Engineer",
+            company: "Stripe",
+            location: "San Francisco, CA",
+            source: "LinkedIn",
+            match_score: 88,
+            salary_info: "$155k - $195k",
+            is_remote: false
+        },
+        {
+            title: "React Platform Engineer",
+            company: "Linear",
+            location: "Remote (North America)",
+            source: "Company Site",
+            match_score: 86,
+            salary_info: "$150k - $190k",
+            is_remote: true
+        },
+        {
+            title: "Product Engineer",
+            company: "Notion",
+            location: "New York, NY",
+            source: "Indeed",
+            match_score: 82,
+            salary_info: "$145k - $180k",
+            is_remote: false
+        },
+        {
+            title: "Frontend Developer",
+            company: "Figma",
+            location: "Remote",
+            source: "LinkedIn",
+            match_score: 80,
+            salary_info: "$140k - $175k",
+            is_remote: true
+        },
+        {
+            title: "Software Engineer, Web",
+            company: "Datadog",
+            location: "Boston, MA",
+            source: "Company Site",
+            match_score: 76,
+            salary_info: "$135k - $170k",
+            is_remote: false
+        },
+        {
+            title: "Next.js Engineer",
+            company: "HashiCorp",
+            location: "Remote (US)",
+            source: "Company Site",
+            match_score: 74,
+            salary_info: "$130k - $165k",
+            is_remote: true
+        },
+        {
+            title: "UI Engineer",
+            company: "Asana",
+            location: "San Francisco, CA",
+            source: "LinkedIn",
+            match_score: 71,
+            salary_info: "$125k - $160k",
+            is_remote: false
+        },
+        {
+            title: "Backend Product Engineer",
+            company: "Retool",
+            location: "Remote (Canada or US)",
+            source: "Indeed",
+            match_score: 67,
+            salary_info: "$130k - $175k",
+            is_remote: true
+        },
+        {
+            title: "Internal Tools Engineer",
+            company: "Ramp",
+            location: "New York, NY",
+            source: "Company Site",
+            match_score: 63,
+            salary_info: "$120k - $155k",
+            is_remote: false
+        },
+        {
+            title: "JavaScript Developer",
+            company: "Webflow",
+            location: "Remote",
+            source: "LinkedIn",
+            match_score: 58,
+            salary_info: "$115k - $150k",
+            is_remote: true
+        },
+        {
+            title: "Frontend Support Engineer",
+            company: "TechNova",
+            location: "Austin, TX",
+            source: "Indeed",
+            match_score: 52,
+            salary_info: "$100k - $130k",
+            is_remote: false
+        }
+    ];
+    const jobsToInsert = demoJobs.map((job, i) => ({
             resume_id: resumeData.id,
             user_id: userId,
-            title: `Senior Frontend Engineer ${i + 1}`,
-            company: ["Vercel", "Acme Corp", "TechNova", "Innovate LLC"][Math.floor(Math.random() * 4)],
-            location: ["Remote", "San Francisco, CA", "New York, NY"][Math.floor(Math.random() * 3)],
-            description: "Join our core product team to build the future of our web application. You will be responsible for architecting scalable frontend solutions using React and TypeScript. Minimum 5 years of experience required. Strong knowledge of modern CSS and accessibility standards is a must.",
-            url: `https://example.com/jobs/demo_${Date.now()}_${i}`,
-            source: ["LinkedIn", "Indeed", "Company Site"][Math.floor(Math.random() * 3)],
-            discovered_at: new Date(now.getTime() - Math.floor(Math.random() * 7 * 24 * 60 * 60 * 1000)).toISOString(),
-            match_score: Math.floor(Math.random() * 30 + 70), // 70-100
-            match_reasoning: "Excellent overlap with React and Next.js skills. Candidate's experience perfectly aligns with the core requirements.",
+            title: job.title,
+            company: job.company,
+            location: job.location,
+            description: "Join a product-focused engineering team building modern web applications with React, TypeScript, Next.js, Node.js, and PostgreSQL. The role values accessibility, maintainable UI systems, API design, and clear ownership across the product lifecycle.",
+            url: `https://example.com/jobs/demo-${i + 1}`,
+            source: job.source,
+            posted_at: new Date(now.getTime() - (i + 1) * 24 * 60 * 60 * 1000).toISOString(),
+            discovered_at: new Date(now.getTime() - i * 6 * 60 * 60 * 1000).toISOString(),
+            match_score: job.match_score,
+            match_reasoning: "Strong match for React, TypeScript, Next.js, and full-stack product engineering experience. The score reflects overlap with the demo resume's skills, seniority, and preferred role types.",
             status: "new",
-            salary_info: ["$150k - $200k", "$130k - $160k", null][Math.floor(Math.random() * 3)],
-            is_remote: Math.random() > 0.5
-        }))
-    ];
+            salary_info: job.salary_info,
+            is_remote: job.is_remote
+    }));
 
     const { data: jobs, error: jobsErr } = await supabase.from("job_listings").insert(jobsToInsert).select();
 
