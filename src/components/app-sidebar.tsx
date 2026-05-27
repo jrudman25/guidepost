@@ -30,6 +30,7 @@ export function AppSidebar() {
     const [unseenCount, setUnseenCount] = useState(0);
     const [savedCount, setSavedCount] = useState(0);
     const [userEmail, setUserEmail] = useState<string | null>(null);
+    const isDemoAccount = userEmail === "demo@guidepostai.app";
 
     const fetchCounts = useCallback(async () => {
         try {
@@ -97,7 +98,7 @@ export function AppSidebar() {
             <nav className="flex-1 space-y-1 px-3 py-4">
                 {navigation
                     .filter((item) =>
-                        item.href !== "/logs" || userEmail !== "demo@guidepostai.app"
+                        item.href !== "/logs" || !isDemoAccount
                     )
                     .map((item) => {
                         const isActive =
@@ -142,6 +143,15 @@ export function AppSidebar() {
                         );
                     })}
             </nav>
+
+            {isDemoAccount && (
+                <div className="mx-3 mb-3 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">
+                    <p className="font-semibold">Guest demo account</p>
+                    <p className="mt-1">
+                        View only. Edits, scans, uploads, and status changes are disabled.
+                    </p>
+                </div>
+            )}
 
             {/* Footer */}
             <div className="border-t border-border px-3 py-3">

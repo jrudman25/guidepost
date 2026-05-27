@@ -108,6 +108,9 @@ export default function LoginPage() {
                             {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                             Send magic link
                         </Button>
+                        <p className="text-center text-xs text-muted-foreground">
+                            Signups are currently disabled. Please contact jrud25@outlook.com for access.
+                        </p>
                         <div className="relative my-4">
                             <div className="absolute inset-0 flex items-center">
                                 <span className="w-full border-t border-border" />
@@ -128,6 +131,9 @@ export default function LoginPage() {
                             {guestLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                             Sign in as Guest
                         </Button>
+                        <p className="text-center text-xs text-muted-foreground">
+                            Guest access is view only. Editing, uploads, scans, and status changes are disabled.
+                        </p>
                     </form>
                 )}
             </div>
