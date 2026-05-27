@@ -154,17 +154,14 @@ export default function InboxPage() {
                 body: JSON.stringify({}),
             });
 
+            await handleApiError(response, "Search failed");
             const data = await response.json();
-
-            if (!response.ok) throw new Error(data.error);
 
             toast.success(`Found ${data.new_jobs_found} new job listings!`);
             setPage(1);
             fetchJobs(statusParam, 1, "", sortBy, unseenOnly, scoreBandParam);
         } catch (error) {
-            toast.error(
-                error instanceof Error ? error.message : "Search failed"
-            );
+            toastApiError(error, "Search failed");
         } finally {
             setSearching(false);
         }
@@ -187,7 +184,7 @@ export default function InboxPage() {
                 body: JSON.stringify({ status, ...(!job?.seen_at ? { seen_at: now } : {}) }),
             });
 
-            if (!response.ok) throw new Error("Failed to update");
+            await handleApiError(response, "Failed to update job status");
 
             // Update sidebar count if an unseen "new" job was dismissed/saved
             if (wasUnseen) {
@@ -508,6 +505,12 @@ export default function InboxPage() {
                                             <div className="mt-1 flex items-center gap-2 text-sm text-muted-foreground">
                                                 <Building2 className="h-3.5 w-3.5 shrink-0" />
                                                 <span className="truncate">{job.company}</span>
+                                                {job.is_remote && (
+                                                    <Badge variant="outline" className="shrink-0 text-xs">
+                                                        <Wifi className="mr-1 h-3 w-3" />
+                                                        Remote
+                                                    </Badge>
+                                                )}
                                             </div>
                                             <div className="mt-1 flex flex-wrap items-center gap-2">
                                                 {job.location && (
@@ -515,12 +518,6 @@ export default function InboxPage() {
                                                         <MapPin className="h-3 w-3" />
                                                         {job.location}
                                                     </span>
-                                                )}
-                                                {job.is_remote && (
-                                                    <Badge variant="outline" className="text-xs">
-                                                        <Wifi className="mr-1 h-3 w-3" />
-                                                        Remote
-                                                    </Badge>
                                                 )}
                                                 {job.salary_info && (
                                                     <span className="flex items-center gap-1 text-xs text-muted-foreground">
