@@ -108,9 +108,11 @@ export function isLocationCompatible(
     const userStateAbbr = userParts[1] || "";
     const userStateFull = US_STATES[userStateAbbr.toUpperCase()]?.toLowerCase() || "";
 
-    // Check if job location contains the user's city or state
+    // Check if job location contains the user's city or state.
+    // State abbreviations use word-boundary matching so short codes like
+    // "OR" or "IN" don't false-positive inside words ("York", "Austin").
     if (userCity && jobLoc.includes(userCity)) return true;
-    if (userStateAbbr && jobLoc.includes(userStateAbbr)) return true;
+    if (userStateAbbr && new RegExp(`\\b${userStateAbbr}\\b`).test(jobLoc)) return true;
     if (userStateFull && jobLoc.includes(userStateFull)) return true;
 
     // Check the reverse: does the user location contain a part of the job location?

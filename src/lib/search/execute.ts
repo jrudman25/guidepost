@@ -131,6 +131,7 @@ export async function executeJobSearch(
                     const { data: existingJobs } = await supabase
                         .from("job_listings")
                         .select("url")
+                        .eq("user_id", resume.user_id)
                         .in("url", allUrls);
                     existingJobs?.forEach((j) => existingUrls.add(j.url));
                 }

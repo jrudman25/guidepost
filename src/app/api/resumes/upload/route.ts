@@ -30,10 +30,12 @@ export async function POST(request: Request) {
             );
         }
 
-        // Sanitize filename and build storage path
+        // Sanitize filename and build storage path (prefixed by user id so
+        // storage policies can scope object access per user)
+        const { data: { user } } = await supabase.auth.getUser();
         const timestamp = Date.now();
         const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
-        const filePath = `${timestamp}_${safeName}`;
+        const filePath = `${user?.id ?? "unknown"}/${timestamp}_${safeName}`;
 
         const { error: uploadError } = await supabase.storage
             .from("resumes")
@@ -59,6 +61,7 @@ export async function POST(request: Request) {
         const resumeText = pdfData.text;
 
         if (!resumeText || resumeText.trim().length < 50) {
+            await supabase.storage.from("resumes").remove([filePath]);
             return NextResponse.json(
                 { error: "Could not extract enough text from the PDF. The file may be image-based or too short." },
                 { status: 400 }
@@ -66,7 +69,13 @@ export async function POST(request: Request) {
         }
 
         // Parse with Gemini
-        const parsedData = await parseResume(resumeText);
+        let parsedData;
+        try {
+            parsedData = await parseResume(resumeText);
+        } catch (parseErr) {
+            await supabase.storage.from("resumes").remove([filePath]);
+            throw parseErr;
+        }
 
         // Insert resume record
         const { data: resume, error: insertError } = await supabase
@@ -82,6 +91,7 @@ export async function POST(request: Request) {
 
         if (insertError) {
             console.error("Insert error:", insertError);
+            await supabase.storage.from("resumes").remove([filePath]);
             return NextResponse.json(
                 { error: "Failed to save resume: " + insertError.message },
                 { status: 500 }

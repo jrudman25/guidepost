@@ -46,13 +46,6 @@ export async function PUT(
         const supabase = await createClient();
         const body = await request.json();
 
-        // Check if filters already exist
-        const { data: existing } = await supabase
-            .from("search_filters")
-            .select("id")
-            .eq("resume_id", id)
-            .single();
-
         const filterData = {
             resume_id: id,
             keywords: body.keywords || [],
@@ -64,21 +57,11 @@ export async function PUT(
             excluded_companies: body.excluded_companies || [],
         };
 
-        let result;
-        if (existing) {
-            result = await supabase
-                .from("search_filters")
-                .update(filterData)
-                .eq("resume_id", id)
-                .select()
-                .single();
-        } else {
-            result = await supabase
-                .from("search_filters")
-                .insert(filterData)
-                .select()
-                .single();
-        }
+        const result = await supabase
+            .from("search_filters")
+            .upsert(filterData, { onConflict: "resume_id" })
+            .select()
+            .single();
 
         if (result.error) {
             return NextResponse.json(
