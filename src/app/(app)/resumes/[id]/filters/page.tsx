@@ -138,7 +138,7 @@ export default function FiltersPage() {
                 <div className="space-y-2">
                     <Label>Additional Keywords</Label>
                     <p className="text-xs text-muted-foreground">
-                        Extra search terms added to every query
+                        Saved with this resume filter profile (not currently applied to search queries)
                     </p>
                     <div className="flex gap-2">
                         <Input

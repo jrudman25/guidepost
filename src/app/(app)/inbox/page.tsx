@@ -28,7 +28,7 @@ import {
     ArrowUpDown,
 } from "lucide-react";
 import { toast } from "sonner";
-import { cn, handleApiError, toastApiError } from "@/lib/utils";
+import { cn, handleApiError, toastApiError, safeHttpUrl } from "@/lib/utils";
 import { PaginationControls } from "@/components/pagination-controls";
 
 function getScoreColor(score: number | null): string {
@@ -676,9 +676,9 @@ export default function InboxPage() {
                                         Back to Inbox
                                     </Button>
                                 )}
-                                {selectedJob.url && (
+                                {safeHttpUrl(selectedJob.url) && (
                                     <Button variant="outline" size="sm" asChild>
-                                        <Link href={selectedJob.url} target="_blank">
+                                        <Link href={safeHttpUrl(selectedJob.url)!} target="_blank">
                                             <ExternalLink className="mr-1 h-4 w-4" />
                                             View Posting
                                         </Link>
@@ -706,25 +706,14 @@ export default function InboxPage() {
 }
 
 function getNextAutoScan(): Date {
-    // Cron runs daily at 8 AM Pacific (UTC-8 in PST, UTC-7 in PDT)
+    // Vercel Cron runs daily at 16:00 UTC (see vercel.json)
     const now = new Date();
-    // Get current time in Pacific
-    const pacific = new Date(
-        now.toLocaleString("en-US", { timeZone: "America/Los_Angeles" })
-    );
-    const next = new Date(pacific);
-    next.setHours(8, 0, 0, 0);
-
-    // If 8 AM has already passed today, move to tomorrow
-    if (next <= pacific) {
-        next.setDate(next.getDate() + 1);
+    const next = new Date(now);
+    next.setUTCHours(16, 0, 0, 0);
+    if (next <= now) {
+        next.setUTCDate(next.getUTCDate() + 1);
     }
-
-    // Convert back to UTC by getting the offset
-    const utcNext = new Date(
-        now.getTime() + (next.getTime() - pacific.getTime())
-    );
-    return utcNext;
+    return next;
 }
 
 function formatRelativeTime(date: Date): string {
@@ -774,7 +763,8 @@ function ScanTimingInfo({ jobs }: { jobs: JobListing[] }) {
                     : "No scans yet"}
             </span>
             <span>
-                Next auto-scan: {formatRelativeTime(nextAutoScan)} (8:00 AM PT)
+                Next auto-scan: {formatRelativeTime(nextAutoScan)} (
+                {nextAutoScan.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })} your time)
             </span>
         </div>
     );

@@ -13,6 +13,20 @@ export async function handleApiError(response: Response, defaultMessage: string 
   }
 }
 
+/**
+ * Return the URL only if it uses http(s), otherwise null.
+ * Guards against javascript:/data: schemes in scraped or user-entered URLs.
+ */
+export function safeHttpUrl(url: string | null | undefined): string | null {
+  if (!url) return null;
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === "http:" || parsed.protocol === "https:" ? url : null;
+  } catch {
+    return null;
+  }
+}
+
 export function toastApiError(e: unknown, defaultMessage: string) {
   if (e instanceof Error) {
     if (e.message.includes("Demo Account")) {
