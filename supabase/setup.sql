@@ -57,7 +57,7 @@ create table if not exists public.job_listings (
 );
 
 create index if not exists job_listings_status_score_idx on public.job_listings(status, match_score desc);
-create unique index if not exists job_listings_url_idx on public.job_listings(url) where url is not null;
+create unique index if not exists job_listings_url_idx on public.job_listings(user_id, url) where url is not null;
 
 -- ============================================
 -- Applications
