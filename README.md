@@ -130,13 +130,22 @@ npm test
 
 2. **Storage buckets** - Create three private buckets in Supabase Storage:
 
-   | Bucket | Purpose | Allowed MIME |
-   |--------|---------|--------------|
-   | `resumes` | PDF resume files | `application/pdf` |
-   | `pipeline-logs` | Daily search run logs | `text/markdown` |
-   | `db-backups` | Database snapshots | `application/json` |
+   | Bucket | Purpose | Allowed MIME | Access |
+   |--------|---------|--------------|--------|
+   | `resumes` | PDF resume files | `application/pdf` | Authenticated users, own folder only |
+   | `pipeline-logs` | Daily search run logs | `text/markdown` | Service role only |
+   | `db-backups` | Database snapshots | `application/json` | Service role only |
 
-   For each bucket, add Storage policies granting `authenticated` users SELECT, INSERT, UPDATE, and DELETE access.
+   `pipeline-logs` and `db-backups` are written by the service role (cron) and must NOT have
+   `authenticated` user policies - backups contain all users' data. For `resumes`, scope
+   access to the user's own folder (uploads are stored under `<user_id>/`):
+
+   ```sql
+   create policy "Users manage their own resume files"
+   on storage.objects for all to authenticated
+   using (bucket_id = 'resumes' and (storage.foldername(name))[1] = auth.uid()::text)
+   with check (bucket_id = 'resumes' and (storage.foldername(name))[1] = auth.uid()::text);
+   ```
 
 3. **Authentication** - Enable email/password auth in Supabase Auth settings. Add `http://localhost:3000**` to the Redirect URLs list.
 
