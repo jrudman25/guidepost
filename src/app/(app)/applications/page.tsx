@@ -36,7 +36,7 @@ import {
     ArrowUpDown,
 } from "lucide-react";
 import { toast } from "sonner";
-import { cn, handleApiError, toastApiError } from "@/lib/utils";
+import { cn, handleApiError, toastApiError, safeHttpUrl } from "@/lib/utils";
 import { PaginationControls } from "@/components/pagination-controls";
 
 const STATUS_OPTIONS: { value: ApplicationStatus; label: string }[] = [
@@ -482,8 +482,8 @@ export default function ApplicationsPage() {
                                             {STATUS_OPTIONS.find((s) => s.value === app.status)
                                                 ?.label}
                                         </Badge>
-                                        {app.url && (
-                                            <a href={app.url} target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-foreground transition-colors">
+                                        {safeHttpUrl(app.url) && (
+                                            <a href={safeHttpUrl(app.url)!} target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-foreground transition-colors">
                                                 <ExternalLink className="h-3.5 w-3.5" />
                                             </a>
                                         )}

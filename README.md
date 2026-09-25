@@ -7,8 +7,8 @@ A full-stack job search management tool that automatically finds job listings ma
 
 ## What It Does
 
-1. **Upload a resume** (PDF) - Gemini extracts your skills, titles, experience, and industries
-2. **Configure search filters** - location, remote preference, seniority level, keywords, excluded companies, and listing age
+1. **Upload a resume** (PDF) - Gemini extracts your skills, titles, experience, and industries; the targeted job titles can be edited per resume
+2. **Configure search filters** - location, remote preference, seniority level, keywords, excluded companies, and listing age; filters are saved per user and apply to every active resume, so uploading a new resume keeps them
 3. **Auto-discover jobs** - a daily cron job queries Google Jobs via SerpAPI, deduplicates results, and filters by your preferences
 4. **AI match scoring** - jobs are scored 0–100 in batches against your resume with written explanations; low matches are separated and very low matches are auto-dismissed
 5. **Track applications** - move jobs through a pipeline (applied → screening → interview → offer / rejected / ghosted) with "furthest stage reached" tracking for granular rejection analytics
@@ -30,7 +30,7 @@ A full-stack job search management tool that automatically finds job listings ma
 | Job Data | SerpAPI (Google Jobs engine) |
 | Styling | Tailwind CSS 4 + Shadcn UI |
 | Charts | Recharts |
-| Testing | Vitest (123 unit tests) |
+| Testing | Vitest (171 unit tests) |
 | Hosting | Vercel (with Cron for daily search) |
 
 ## Architecture
@@ -41,12 +41,14 @@ src/
     (app)/                # Authenticated pages
       page.tsx            #   Dashboard with analytics + rejection funnel
       inbox/              #   Job inbox with search, sort, filtering, pagination, bulk actions
-      resumes/            #   Resume management + search filter config
+      resumes/            #   Resume management + job title editing
+      filters/            #   Per-user search filter config
       applications/       #   Application pipeline tracker with search + sort
       logs/               #   Pipeline log viewer (admin only)
     api/
       jobs/               #   CRUD + bulk update + manual search trigger
-      resumes/            #   Upload, delete, filter management
+      resumes/            #   Upload, delete, activate, job title edits
+      filters/            #   Per-user search filters (GET/PUT)
       applications/       #   Application CRUD with status history
       stats/              #   Dashboard analytics
       logs/               #   Pipeline log list + detail
@@ -130,13 +132,22 @@ npm test
 
 2. **Storage buckets** - Create three private buckets in Supabase Storage:
 
-   | Bucket | Purpose | Allowed MIME |
-   |--------|---------|--------------|
-   | `resumes` | PDF resume files | `application/pdf` |
-   | `pipeline-logs` | Daily search run logs | `text/markdown` |
-   | `db-backups` | Database snapshots | `application/json` |
+   | Bucket | Purpose | Allowed MIME | Access |
+   |--------|---------|--------------|--------|
+   | `resumes` | PDF resume files | `application/pdf` | Authenticated users, own folder only |
+   | `pipeline-logs` | Daily search run logs | `text/markdown` | Service role only |
+   | `db-backups` | Database snapshots | `application/json` | Service role only |
 
-   For each bucket, add Storage policies granting `authenticated` users SELECT, INSERT, UPDATE, and DELETE access.
+   `pipeline-logs` and `db-backups` are written by the service role (cron) and must NOT have
+   `authenticated` user policies - backups contain all users' data. For `resumes`, scope
+   access to the user's own folder (uploads are stored under `<user_id>/`):
+
+   ```sql
+   create policy "Users manage their own resume files"
+   on storage.objects for all to authenticated
+   using (bucket_id = 'resumes' and (storage.foldername(name))[1] = auth.uid()::text)
+   with check (bucket_id = 'resumes' and (storage.foldername(name))[1] = auth.uid()::text);
+   ```
 
 3. **Authentication** - Enable email/password auth in Supabase Auth settings. Add `http://localhost:3000**` to the Redirect URLs list.
 

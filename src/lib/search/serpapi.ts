@@ -135,7 +135,7 @@ async function fetchSerpApi(params: Record<string, string>): Promise<SerpApiResp
         url.searchParams.set(key, value);
     });
 
-    const response = await fetch(url.toString());
+    const response = await fetch(url.toString(), { signal: AbortSignal.timeout(30000) });
 
     if (!response.ok) {
         const errorText = await response.text();

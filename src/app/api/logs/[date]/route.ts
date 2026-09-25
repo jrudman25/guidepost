@@ -13,6 +13,12 @@ export async function GET(
 ) {
     try {
         const { date } = await params;
+
+        // Log files are named YYYY-MM-DD.md — reject anything else (path traversal, junk)
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+            return NextResponse.json({ error: "Invalid date format" }, { status: 400 });
+        }
+
         const supabase = await createClient();
 
         // Only allow non-demo users to view pipeline logs

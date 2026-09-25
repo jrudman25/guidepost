@@ -23,7 +23,6 @@ export interface ParsedResumeData {
 export interface SearchFilter {
     id: string;
     user_id: string;
-    resume_id: string;
     keywords: string[];
     location: string | null;
     remote_preference: "remote" | "hybrid" | "onsite" | "any";

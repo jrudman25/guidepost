@@ -12,7 +12,8 @@ export async function GET(request: Request) {
         const { searchParams } = new URL(request.url);
 
         const status = searchParams.get("status");
-        const limit = parseInt(searchParams.get("limit") || "50");
+        const rawLimit = parseInt(searchParams.get("limit") || "50");
+        const limit = Number.isFinite(rawLimit) ? Math.min(Math.max(rawLimit, 1), 100) : 50;
         const offset = parseInt(searchParams.get("offset") || "0");
         const sort = searchParams.get("sort") || "score";
         const scoreBand = searchParams.get("score_band");
@@ -47,7 +48,8 @@ export async function GET(request: Request) {
             query = query.gte("match_score", 25).lt("match_score", 50);
         }
 
-        const search = searchParams.get("search");
+        // Strip PostgREST filter-grammar chars so user input can't alter the .or() structure
+        const search = searchParams.get("search")?.replace(/[(),]/g, " ").trim();
         if (search) {
             query = query.or(`title.ilike.%${search}%,company.ilike.%${search}%,location.ilike.%${search}%`);
         }

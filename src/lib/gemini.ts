@@ -1,6 +1,11 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { GoogleGenAI } from "@google/genai";
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
+// Lazy + memoized: the constructor can throw when GEMINI_API_KEY is missing
+// (e.g. module evaluated during `next build`), so don't create it at import time.
+let client: GoogleGenAI | undefined;
+function getClient() {
+    return (client ??= new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! }));
+}
 
 const PRIMARY_MODEL = "gemini-3-flash-preview";
 const SECONDARY_MODEL = "gemini-2.5-flash";
@@ -20,7 +25,6 @@ export async function generateWithFallback(
 
     for (let i = 0; i < models.length; i++) {
         const modelName = models[i];
-        const model = genAI.getGenerativeModel({ model: modelName });
 
         for (let attempt = 1; attempt <= MAX_ATTEMPTS_PER_MODEL; attempt++) {
             try {
@@ -29,11 +33,11 @@ export async function generateWithFallback(
                 );
 
                 const result = await Promise.race([
-                    model.generateContent(prompt),
+                    getClient().models.generateContent({ model: modelName, contents: prompt }),
                     timeoutPromise,
                 ]);
 
-                const text = result.response.text();
+                const text = result.text ?? "";
 
                 return { text, model: modelName };
             } catch (error) {

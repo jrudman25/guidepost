@@ -1,7 +1,6 @@
-﻿"use client";
+"use client";
 
 import { useState, useEffect } from "react";
-import { useParams, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -13,16 +12,12 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Loader2, Plus, X } from "lucide-react";
+import { Loader2, Plus, X } from "lucide-react";
 import { toast } from "sonner";
 import type { SearchFilter } from "@/lib/types";
 import { handleApiError, toastApiError } from "@/lib/utils";
 
 export default function FiltersPage() {
-    const params = useParams();
-    const router = useRouter();
-    const resumeId = params.id as string;
-
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [keywordInput, setKeywordInput] = useState("");
@@ -41,7 +36,7 @@ export default function FiltersPage() {
     useEffect(() => {
         async function fetchFilters() {
             try {
-                const response = await fetch(`/api/resumes/${resumeId}/filters`);
+                const response = await fetch("/api/filters");
                 const data = await response.json();
                 if (data.filters) {
                     setFilters(data.filters);
@@ -53,7 +48,7 @@ export default function FiltersPage() {
             }
         }
         fetchFilters();
-    }, [resumeId]);
+    }, []);
 
     function addKeyword() {
         const kw = keywordInput.trim();
@@ -96,7 +91,7 @@ export default function FiltersPage() {
     async function handleSave() {
         setSaving(true);
         try {
-            const response = await fetch(`/api/resumes/${resumeId}/filters`, {
+            const response = await fetch("/api/filters", {
                 method: "PUT",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(filters),
@@ -121,16 +116,11 @@ export default function FiltersPage() {
 
     return (
         <div className="space-y-8">
-            <div className="flex items-center gap-4">
-                <Button variant="ghost" size="icon" onClick={() => router.back()}>
-                    <ArrowLeft className="h-4 w-4" />
-                </Button>
-                <div>
-                    <h1 className="text-3xl font-bold tracking-tight">Search Filters</h1>
-                    <p className="mt-1 text-muted-foreground">
-                        Customize how we search for jobs matching this resume.
-                    </p>
-                </div>
+            <div>
+                <h1 className="text-3xl font-bold tracking-tight">Search Filters</h1>
+                <p className="mt-1 text-muted-foreground">
+                    These filters apply to every active resume.
+                </p>
             </div>
 
             <div className="max-w-2xl space-y-6 rounded-xl border border-border bg-card p-6">
@@ -138,7 +128,7 @@ export default function FiltersPage() {
                 <div className="space-y-2">
                     <Label>Additional Keywords</Label>
                     <p className="text-xs text-muted-foreground">
-                        Extra search terms added to every query
+                        Saved with your filters (not currently applied to search queries)
                     </p>
                     <div className="flex gap-2">
                         <Input
@@ -308,4 +298,3 @@ export default function FiltersPage() {
         </div>
     );
 }
-

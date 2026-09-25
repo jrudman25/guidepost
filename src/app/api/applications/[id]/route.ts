@@ -17,7 +17,16 @@ export async function PATCH(
         // Note: status_updated_at and status_history are managed by a DB trigger
         // (log_application_status_change) so we only need to set the new status.
         const updateData: Record<string, unknown> = {};
-        if (body.status !== undefined) updateData.status = body.status;
+        if (body.status !== undefined) {
+            const validStatuses = ["applied", "screening", "interview", "offer", "rejected", "ghosted"];
+            if (!validStatuses.includes(body.status)) {
+                return NextResponse.json(
+                    { error: `Invalid status. Must be one of: ${validStatuses.join(", ")}` },
+                    { status: 400 }
+                );
+            }
+            updateData.status = body.status;
+        }
         if (body.notes !== undefined) updateData.notes = body.notes;
         if (body.applied_via !== undefined) updateData.applied_via = body.applied_via;
         if (body.url !== undefined) updateData.url = body.url;
@@ -25,7 +34,16 @@ export async function PATCH(
         if (body.company !== undefined) updateData.company = body.company;
         if (body.applied_at !== undefined) updateData.applied_at = body.applied_at;
         if (body.heard_back_at !== undefined) updateData.heard_back_at = body.heard_back_at;
-        if (body.furthest_stage !== undefined) updateData.furthest_stage = body.furthest_stage;
+        if (body.furthest_stage !== undefined) {
+            const validStages = ["applied", "screening", "interview", "offer"];
+            if (!validStages.includes(body.furthest_stage)) {
+                return NextResponse.json(
+                    { error: `Invalid furthest_stage. Must be one of: ${validStages.join(", ")}` },
+                    { status: 400 }
+                );
+            }
+            updateData.furthest_stage = body.furthest_stage;
+        }
 
         // Validate dates
         const today = new Date().toISOString().split("T")[0];

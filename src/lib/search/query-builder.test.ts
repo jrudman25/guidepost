@@ -23,7 +23,6 @@ function makeFilters(overrides: Partial<SearchFilter> = {}): SearchFilter {
     return {
         id: "f1",
         user_id: "u1",
-        resume_id: "r1",
         keywords: [],
         location: null,
         remote_preference: "any",

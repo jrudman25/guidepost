@@ -82,9 +82,16 @@ export async function GET() {
             .select("*", { count: "exact", head: true })
             .gte("discovered_at", oneWeekAgo.toISOString());
 
+        const isDemo = user?.email === "demo@guidepostai.app";
+        const userName = isDemo
+            ? "Guest"
+            : (user?.user_metadata?.full_name as string | undefined)
+                ?? user?.email?.split("@")[0]
+                ?? "there";
+
         return NextResponse.json({
             ...stats,
-            userName: user?.email === "demo@guidepostai.app" ? "Guest" : "Jordan",
+            userName,
             activeResumes: activeResumes || 0,
             newJobsThisWeek: newJobsThisWeek || 0,
             resumeSkills: [...new Set(resumeSkills)],

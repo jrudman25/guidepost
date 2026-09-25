@@ -1,10 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import type { Resume } from "@/lib/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import {
     FileText,
@@ -17,10 +17,13 @@ import {
     GraduationCap,
     Wrench,
     Loader2,
-    SlidersHorizontal,
+    Pencil,
+    Plus,
+    X,
 } from "lucide-react";
 import { toast } from "sonner";
 import { handleApiError, toastApiError } from "@/lib/utils";
+import { MAX_JOB_TITLES } from "@/lib/job-titles-input";
 
 interface ResumeCardProps {
     resume: Resume;
@@ -30,6 +33,10 @@ interface ResumeCardProps {
 export function ResumeCard({ resume, onUpdate }: ResumeCardProps) {
     const [expanded, setExpanded] = useState(false);
     const [loading, setLoading] = useState(false);
+    const [editingTitles, setEditingTitles] = useState(false);
+    const [savingTitles, setSavingTitles] = useState(false);
+    const [editTitles, setEditTitles] = useState<string[]>([]);
+    const [titleInput, setTitleInput] = useState("");
 
     const parsed = resume.parsed_data;
 
@@ -77,6 +84,49 @@ export function ResumeCard({ resume, onUpdate }: ResumeCardProps) {
         }
     }
 
+    function startEditTitles() {
+        setEditTitles(parsed?.job_titles ?? []);
+        setTitleInput("");
+        setEditingTitles(true);
+    }
+
+    function addTitle() {
+        const title = titleInput.trim();
+        if (
+            title &&
+            editTitles.length < MAX_JOB_TITLES &&
+            !editTitles.some((t) => t.toLowerCase() === title.toLowerCase())
+        ) {
+            setEditTitles((prev) => [...prev, title]);
+            setTitleInput("");
+        }
+    }
+
+    function removeTitle(title: string) {
+        setEditTitles((prev) => prev.filter((t) => t !== title));
+    }
+
+    async function saveTitles() {
+        setSavingTitles(true);
+        try {
+            const response = await fetch(`/api/resumes/${resume.id}`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ job_titles: editTitles }),
+            });
+
+            await handleApiError(response, "Failed to update job titles");
+
+            toast.success("Job titles updated");
+            setEditingTitles(false);
+            onUpdate();
+        } catch (e) {
+            toastApiError(e, "Failed to update job titles");
+        } finally {
+            setSavingTitles(false);
+        }
+    }
+
     return (
         <div className="rounded-xl border border-border bg-card">
             {/* Header */}
@@ -113,17 +163,6 @@ export function ResumeCard({ resume, onUpdate }: ResumeCardProps) {
                         ) : (
                             <ToggleLeft className="h-4 w-4" />
                         )}
-                    </Button>
-
-                    <Button
-                        variant="ghost"
-                        size="icon"
-                        asChild
-                        title="Edit search filters"
-                    >
-                        <Link href={`/resumes/${resume.id}/filters`}>
-                            <SlidersHorizontal className="h-4 w-4" />
-                        </Link>
                     </Button>
 
                     <Button
@@ -180,14 +219,90 @@ export function ResumeCard({ resume, onUpdate }: ResumeCardProps) {
                             <div className="flex items-center gap-2 text-sm font-medium">
                                 <Briefcase className="h-4 w-4 text-muted-foreground" />
                                 Job Titles
+                                {!editingTitles && (
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={startEditTitles}
+                                        title="Edit job titles"
+                                    >
+                                        <Pencil className="h-3.5 w-3.5" />
+                                    </Button>
+                                )}
                             </div>
-                            <ul className="space-y-1">
-                                {parsed.job_titles.map((title) => (
-                                    <li key={title} className="text-sm text-muted-foreground">
-                                        {title}
-                                    </li>
-                                ))}
-                            </ul>
+                            <p className="text-xs text-muted-foreground">
+                                Only the first 4 titles are used in searches.
+                            </p>
+                            {editingTitles ? (
+                                <div className="space-y-2">
+                                    <div className="flex flex-wrap gap-1.5">
+                                        {editTitles.map((title) => (
+                                            <Badge
+                                                key={title}
+                                                variant="secondary"
+                                                className="gap-1"
+                                            >
+                                                {title}
+                                                <button onClick={() => removeTitle(title)}>
+                                                    <X className="h-3 w-3" />
+                                                </button>
+                                            </Badge>
+                                        ))}
+                                    </div>
+                                    <div className="flex gap-2">
+                                        <Input
+                                            placeholder="Add a job title"
+                                            value={titleInput}
+                                            onChange={(e) => setTitleInput(e.target.value)}
+                                            onKeyDown={(e) =>
+                                                e.key === "Enter" && (e.preventDefault(), addTitle())
+                                            }
+                                            disabled={editTitles.length >= MAX_JOB_TITLES}
+                                        />
+                                        <Button
+                                            variant="outline"
+                                            size="icon"
+                                            onClick={addTitle}
+                                            disabled={editTitles.length >= MAX_JOB_TITLES}
+                                        >
+                                            <Plus className="h-4 w-4" />
+                                        </Button>
+                                    </div>
+                                    <div className="flex gap-2">
+                                        <Button
+                                            size="sm"
+                                            onClick={saveTitles}
+                                            disabled={savingTitles}
+                                        >
+                                            {savingTitles && (
+                                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                            )}
+                                            Save
+                                        </Button>
+                                        <Button
+                                            size="sm"
+                                            variant="ghost"
+                                            onClick={() => setEditingTitles(false)}
+                                            disabled={savingTitles}
+                                        >
+                                            Cancel
+                                        </Button>
+                                    </div>
+                                </div>
+                            ) : (
+                                <ul className="space-y-1">
+                                    {parsed.job_titles.map((title, i) => (
+                                        <li key={title} className="text-sm text-muted-foreground">
+                                            {title}
+                                            {i >= 4 && (
+                                                <span className="text-muted-foreground/60">
+                                                    {" (not searched)"}
+                                                </span>
+                                            )}
+                                        </li>
+                                    ))}
+                                </ul>
+                            )}
                         </div>
 
                         {/* Education */}

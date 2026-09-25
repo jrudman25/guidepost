@@ -10,7 +10,8 @@ export async function GET(request: Request) {
         const supabase = await createClient();
         const { searchParams } = new URL(request.url);
         const status = searchParams.get("status");
-        const limit = parseInt(searchParams.get("limit") || "20");
+        const rawLimit = parseInt(searchParams.get("limit") || "20");
+        const limit = Number.isFinite(rawLimit) ? Math.min(Math.max(rawLimit, 1), 100) : 20;
         const offset = parseInt(searchParams.get("offset") || "0");
         const sort = searchParams.get("sort") || "applied";
 
@@ -36,7 +37,7 @@ export async function GET(request: Request) {
             query = query.eq("status", status);
         }
 
-        const search = searchParams.get("search");
+        const search = searchParams.get("search")?.replace(/[(),]/g, " ").trim();
         if (search) {
             query = query.or(`job_title.ilike.%${search}%,company.ilike.%${search}%,notes.ilike.%${search}%`);
         }
@@ -65,6 +66,13 @@ export async function POST(request: Request) {
     try {
         const supabase = await createClient();
         const body = await request.json();
+
+        if (!body.job_title || !body.company) {
+            return NextResponse.json(
+                { error: "job_title and company are required" },
+                { status: 400 }
+            );
+        }
 
         // Validate dates
         const appliedAt = body.applied_at || new Date().toISOString().split("T")[0];

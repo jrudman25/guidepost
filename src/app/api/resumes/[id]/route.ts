@@ -1,5 +1,7 @@
 ﻿import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { normalizeJobTitles } from "@/lib/job-titles-input";
+import type { ParsedResumeData } from "@/lib/types";
 
 export async function PATCH(
     request: Request,
@@ -10,9 +12,56 @@ export async function PATCH(
         const supabase = await createClient();
         const body = await request.json();
 
+        const updates: Record<string, unknown> = {};
+
+        if (body.is_active !== undefined) {
+            if (typeof body.is_active !== "boolean") {
+                return NextResponse.json(
+                    { error: "is_active must be a boolean" },
+                    { status: 400 }
+                );
+            }
+            updates.is_active = body.is_active;
+        }
+
+        if (body.job_titles !== undefined) {
+            const result = normalizeJobTitles(body.job_titles);
+            if ("error" in result) {
+                return NextResponse.json({ error: result.error }, { status: 400 });
+            }
+
+            const { data: existing, error: fetchError } = await supabase
+                .from("resumes")
+                .select("parsed_data")
+                .eq("id", id)
+                .single();
+
+            if (fetchError) {
+                return NextResponse.json({ error: fetchError.message }, { status: 500 });
+            }
+            if (!existing?.parsed_data) {
+                return NextResponse.json(
+                    { error: "Cannot update job titles: resume has no parsed data" },
+                    { status: 400 }
+                );
+            }
+
+            updates.parsed_data = {
+                ...(existing.parsed_data as ParsedResumeData),
+                job_titles: result.titles,
+            };
+        }
+
+        if (Object.keys(updates).length === 0) {
+            return NextResponse.json(
+                { error: "No valid fields to update" },
+                { status: 400 }
+            );
+        }
+
         const { data, error } = await supabase
             .from("resumes")
-            .update({ is_active: body.is_active })
+            .update(updates)
             .eq("id", id)
             .select()
             .single();
@@ -61,7 +110,7 @@ export async function DELETE(
             }
         }
 
-        // Delete from database (cascades to search_filters)
+        // Delete from database
         const { error: deleteError } = await supabase
             .from("resumes")
             .delete()

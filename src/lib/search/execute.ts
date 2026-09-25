@@ -70,28 +70,36 @@ export async function executeJobSearch(
     let totalNewJobs = 0;
     let estimatedSerpApiCalls = 0;
 
+    // Search filters are per user (shared across their resumes), so cache
+    // them to query once per user instead of once per resume.
+    const filtersByUser = new Map<string, SearchFilter>();
+
     for (const resume of resumes) {
         const parsed = resume.parsed_data as ParsedResumeData;
 
-        // Get search filters for this resume
-        const { data: filters } = await supabase
-            .from("search_filters")
-            .select("*")
-            .eq("resume_id", resume.id)
-            .single();
+        let searchFilters = filtersByUser.get(resume.user_id);
+        if (!searchFilters) {
+            // Explicit user_id filter: this also runs under the service-role
+            // client in cron, which bypasses RLS.
+            const { data: filters } = await supabase
+                .from("search_filters")
+                .select("*")
+                .eq("user_id", resume.user_id)
+                .maybeSingle();
 
-        const searchFilters: SearchFilter = filters || {
-            id: "",
-            user_id: resume.user_id,
-            resume_id: resume.id,
-            keywords: [],
-            location: null,
-            remote_preference: "any",
-            target_seniority: "any",
-            min_salary: null,
-            max_listing_age_days: 7,
-            excluded_companies: [],
-        };
+            searchFilters = (filters as SearchFilter | null) || {
+                id: "",
+                user_id: resume.user_id,
+                keywords: [],
+                location: null,
+                remote_preference: "any",
+                target_seniority: "any",
+                min_salary: null,
+                max_listing_age_days: 7,
+                excluded_companies: [],
+            };
+            filtersByUser.set(resume.user_id, searchFilters);
+        }
 
         // Build and execute search queries
         const queries = buildSearchQueries(parsed, searchFilters);
@@ -131,6 +139,7 @@ export async function executeJobSearch(
                     const { data: existingJobs } = await supabase
                         .from("job_listings")
                         .select("url")
+                        .eq("user_id", resume.user_id)
                         .in("url", allUrls);
                     existingJobs?.forEach((j) => existingUrls.add(j.url));
                 }

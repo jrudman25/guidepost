@@ -131,7 +131,6 @@ describe("searchJobs", () => {
             searchJobs("Engineer", {
                 id: "f1",
                 user_id: "u1",
-                resume_id: "r1",
                 keywords: [],
                 location: null,
                 remote_preference: "any",
@@ -157,7 +156,6 @@ describe("searchJobs", () => {
         const result = await searchJobs("Engineer", {
             id: "f1",
             user_id: "u1",
-            resume_id: "r1",
             keywords: [],
             location: null,
             remote_preference: "any",
@@ -208,7 +206,6 @@ describe("searchJobs", () => {
         const result = await searchJobs("Engineer", {
             id: "f1",
             user_id: "u1",
-            resume_id: "r1",
             keywords: [],
             location: null,
             remote_preference: "any",
@@ -271,7 +268,6 @@ describe("searchJobs", () => {
         const result = await searchJobs("Engineer", {
             id: "f1",
             user_id: "u1",
-            resume_id: "r1",
             keywords: [],
             location: null,
             remote_preference: "any",
@@ -300,7 +296,6 @@ describe("searchJobs", () => {
         const result = await searchJobs("Engineer", {
             id: "f1",
             user_id: "u1",
-            resume_id: "r1",
             keywords: [],
             location: null,
             remote_preference: "any",
@@ -331,7 +326,6 @@ describe("searchJobs", () => {
         const result = await searchJobs("Engineer", {
             id: "f1",
             user_id: "u1",
-            resume_id: "r1",
             keywords: [],
             location: null,
             remote_preference: "any",
@@ -359,7 +353,6 @@ describe("searchJobs", () => {
             searchJobs("Engineer", {
                 id: "f1",
                 user_id: "u1",
-                resume_id: "r1",
                 keywords: [],
                 location: null,
                 remote_preference: "any",
@@ -385,7 +378,6 @@ describe("searchJobs", () => {
             searchJobs("Engineer", {
                 id: "f1",
                 user_id: "u1",
-                resume_id: "r1",
                 keywords: [],
                 location: null,
                 remote_preference: "any",
@@ -415,7 +407,6 @@ describe("searchJobs", () => {
         const result = await searchJobs("Engineer", {
             id: "f1",
             user_id: "u1",
-            resume_id: "r1",
             keywords: [],
             location: null,
             remote_preference: "any",
