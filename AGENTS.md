@@ -13,7 +13,7 @@ Guidepost is job search management tool built on NextJS, Typescript, SerpAPI, Su
 - **Service-role client** (`src/lib/supabase/service.ts`) bypasses RLS — cron and backups only, never in user-facing routes. When querying shared tables with it, filter `user_id` explicitly.
 - **Cron endpoint** `/api/cron/daily-search` is excluded from the proxy matcher and authorized via `CRON_SECRET` bearer token. It also runs the DB backup, backup pruning (30d), dismissed-job cleanup (3mo), and log pruning (14d).
 - **Storage buckets**: `resumes` (per-user folder `<user_id>/`), `pipeline-logs` and `db-backups` are service-role-only — never grant `authenticated` policies on them (backups contain all users' data).
-- **Gemini**: `generateWithFallback()` in `src/lib/gemini.ts` provides the 3-model fallback chain; match scoring batches 5 jobs per call. Failed scoring defaults to 50.
+- **Gemini** (`@google/genai` SDK; the old `@google/generative-ai` is archived): `generateWithFallback()` in `src/lib/gemini.ts` provides the 3-model fallback chain; match scoring batches 5 jobs per call. Failed scoring defaults to 50.
 - **SerpAPI budget**: max 8 calls per search run, 1 page per query (250/mo free tier).
 - **Demo account**: writes blocked at proxy; also blocked from `/api/logs`. Seed via `npx tsx scripts/seed-demo.ts`.
 - **DB schema**: fresh installs use `supabase/setup.sql`; `supabase/migrations/` is the incremental history for existing deployments (latest: 008 per-user search filters).

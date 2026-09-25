@@ -6,12 +6,10 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const mockGenerateContent = vi.fn();
 
-vi.mock("@google/generative-ai", () => {
+vi.mock("@google/genai", () => {
     return {
-        GoogleGenerativeAI: class {
-            getGenerativeModel() {
-                return { generateContent: mockGenerateContent };
-            }
+        GoogleGenAI: class {
+            models = { generateContent: mockGenerateContent };
         },
     };
 });
@@ -39,7 +37,7 @@ describe("parseResume", () => {
         };
 
         mockGenerateContent.mockResolvedValue({
-            response: { text: () => JSON.stringify(mockData) },
+            text: JSON.stringify(mockData),
         });
 
         const result = await parseResume("Sample resume text here...");
@@ -58,9 +56,7 @@ describe("parseResume", () => {
         };
 
         mockGenerateContent.mockResolvedValue({
-            response: {
-                text: () => "```json\n" + JSON.stringify(mockData) + "\n```",
-            },
+            text: "```json\n" + JSON.stringify(mockData) + "\n```",
         });
 
         const result = await parseResume("Resume text");
@@ -69,7 +65,7 @@ describe("parseResume", () => {
 
     it("throws on non-JSON Gemini response", async () => {
         mockGenerateContent.mockResolvedValue({
-            response: { text: () => "I cannot parse this resume." },
+            text: "I cannot parse this resume.",
         });
 
         await expect(parseResume("Bad resume")).rejects.toThrow(
@@ -85,23 +81,20 @@ describe("parseResume", () => {
 
     it("passes the resume text to the prompt", async () => {
         mockGenerateContent.mockResolvedValue({
-            response: {
-                text: () =>
-                    JSON.stringify({
-                        summary: "Test",
-                        job_titles: [],
-                        skills: [],
-                        years_of_experience: 0,
-                        education: [],
-                        certifications: [],
-                        industries: [],
-                    }),
-            },
+            text: JSON.stringify({
+                summary: "Test",
+                job_titles: [],
+                skills: [],
+                years_of_experience: 0,
+                education: [],
+                certifications: [],
+                industries: [],
+            }),
         });
 
         await parseResume("Unique resume content XYZ123");
 
-        const promptArg = mockGenerateContent.mock.calls[0][0] as string;
+        const promptArg = mockGenerateContent.mock.calls[0][0].contents as string;
         expect(promptArg).toContain("Unique resume content XYZ123");
     });
 });
