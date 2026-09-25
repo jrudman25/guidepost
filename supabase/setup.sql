@@ -16,12 +16,11 @@ create table if not exists public.resumes (
 );
 
 -- ============================================
--- Search Filters (per resume)
+-- Search Filters (per user)
 -- ============================================
 create table if not exists public.search_filters (
   id uuid default gen_random_uuid() primary key,
   user_id uuid references auth.users(id) on delete cascade not null default auth.uid(),
-  resume_id uuid references public.resumes(id) on delete cascade not null,
   keywords text[] default '{}',
   location text,
   remote_preference text default 'any' check (remote_preference in ('remote', 'hybrid', 'onsite', 'any')),
@@ -31,7 +30,7 @@ create table if not exists public.search_filters (
   excluded_companies text[] default '{}'
 );
 
-create unique index if not exists search_filters_resume_id_idx on public.search_filters(resume_id);
+create unique index if not exists search_filters_user_id_idx on public.search_filters(user_id);
 
 -- ============================================
 -- Job Listings

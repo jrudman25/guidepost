@@ -55,7 +55,6 @@ async function seed() {
 
     console.log("Inserting search filters...");
     await supabase.from("search_filters").insert({
-        resume_id: resumeData.id,
         user_id: userId,
         keywords: ["engineer", "developer", "remote"],
         location: "San Francisco, CA",
