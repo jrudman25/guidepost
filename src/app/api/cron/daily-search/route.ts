@@ -74,7 +74,7 @@ export async function GET(request: Request) {
         // 5. Look up demo account to exclude from search (saves API usage)
         logger.info("setup", "Looking up demo account exclusion");
         let demoUserId: string | undefined;
-        const { data: demoUsers } = await supabase.auth.admin.listUsers();
+        const { data: demoUsers } = await supabase.auth.admin.listUsers({ perPage: 1000 });
         const demoUser = demoUsers?.users?.find((u) => u.email === "demo@guidepostai.app");
         if (demoUser) {
             demoUserId = demoUser.id;

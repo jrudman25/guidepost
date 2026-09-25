@@ -1,25 +1,21 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { parseSearchFilterInput } from "@/lib/search-filter-input";
 
 /**
- * GET /api/resumes/[id]/filters
- * Get search filters for a specific resume.
+ * GET /api/filters
+ * Get the current user's search filters (shared across all active resumes).
  */
-export async function GET(
-    request: Request,
-    { params }: { params: Promise<{ id: string }> }
-) {
+export async function GET() {
     try {
-        const { id } = await params;
         const supabase = await createClient();
 
         const { data, error } = await supabase
             .from("search_filters")
             .select("*")
-            .eq("resume_id", id)
-            .single();
+            .maybeSingle();
 
-        if (error && error.code !== "PGRST116") {
+        if (error) {
             return NextResponse.json({ error: error.message }, { status: 500 });
         }
 
@@ -34,32 +30,30 @@ export async function GET(
 }
 
 /**
- * PUT /api/resumes/[id]/filters
- * Create or update search filters for a specific resume.
+ * PUT /api/filters
+ * Create or update the current user's search filters.
  */
-export async function PUT(
-    request: Request,
-    { params }: { params: Promise<{ id: string }> }
-) {
+export async function PUT(request: Request) {
     try {
-        const { id } = await params;
         const supabase = await createClient();
         const body = await request.json();
 
-        const filterData = {
-            resume_id: id,
-            keywords: body.keywords || [],
-            location: body.location || null,
-            remote_preference: body.remote_preference || "any",
-            target_seniority: body.target_seniority || "any",
-            min_salary: body.min_salary || null,
-            max_listing_age_days: body.max_listing_age_days || 7,
-            excluded_companies: body.excluded_companies || [],
-        };
+        const parsed = parseSearchFilterInput(body);
+        if ("error" in parsed) {
+            return NextResponse.json({ error: parsed.error }, { status: 400 });
+        }
+
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) {
+            return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+        }
 
         const result = await supabase
             .from("search_filters")
-            .upsert(filterData, { onConflict: "resume_id" })
+            .upsert(
+                { ...parsed.data, user_id: user.id },
+                { onConflict: "user_id" }
+            )
             .select()
             .single();
 

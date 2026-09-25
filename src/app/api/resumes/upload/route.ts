@@ -98,22 +98,6 @@ export async function POST(request: Request) {
             );
         }
 
-        // Create default search filters from parsed data
-        const { error: filterError } = await supabase
-            .from("search_filters")
-            .insert({
-                resume_id: resume.id,
-                keywords: [],
-                remote_preference: "any",
-                target_seniority: "any",
-                max_listing_age_days: 7,
-            });
-
-        if (filterError) {
-            console.error("Filter creation error:", filterError);
-            // Non-fatal — resume was still created
-        }
-
         return NextResponse.json({ resume }, { status: 201 });
     } catch (error) {
         console.error("Resume upload error:", error);

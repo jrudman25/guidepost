@@ -11,6 +11,7 @@ import {
     Compass,
     LogOut,
     ScrollText,
+    SlidersHorizontal,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
@@ -19,6 +20,7 @@ import { version } from '../../package.json';
 const navigation = [
     { name: "Dashboard", href: "/", icon: LayoutDashboard },
     { name: "Resumes", href: "/resumes", icon: FileText },
+    { name: "Search Filters", href: "/filters", icon: SlidersHorizontal },
     { name: "Job Inbox", href: "/inbox", icon: Inbox },
     { name: "Applications", href: "/applications", icon: ClipboardList },
     { name: "Pipeline Logs", href: "/logs", icon: ScrollText },
