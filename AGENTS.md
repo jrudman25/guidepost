@@ -15,7 +15,7 @@ Guidepost is job search management tool built on NextJS, Typescript, SerpAPI, Su
 - **Storage buckets**: `resumes` (per-user folder `<user_id>/`), `pipeline-logs` and `db-backups` are service-role-only — never grant `authenticated` policies on them (backups contain all users' data).
 - **Gemini** (`@google/genai` SDK; the old `@google/generative-ai` is archived): `generateWithFallback()` in `src/lib/gemini.ts` provides the 3-model fallback chain; match scoring batches 5 jobs per call. Failed scoring defaults to 50.
 - **SerpAPI budget**: max 8 calls per search run, 1 page per query (250/mo free tier).
-- **Demo account**: writes blocked at proxy; also blocked from `/api/logs`. Seed via `npx tsx scripts/seed-demo.ts`.
+- **Demo account**: writes blocked at proxy AND by restrictive RLS policies on all tables + storage.objects (migration 009, keyed on JWT email); also blocked from `/api/logs`. Seed via `npx tsx scripts/seed-demo.ts` (service role, since RLS denies demo writes). `/api/logs` reads `pipeline-logs` via the service client because the bucket has no authenticated policies.
 - **DB schema**: fresh installs use `supabase/setup.sql`; `supabase/migrations/` is the incremental history for existing deployments (latest: 008 per-user search filters).
 - **Search filters are per user**: `search_filters` has one row per user (unique `user_id`, no `resume_id`), edited at `/filters` via `/api/filters`, and applied to all of the user's active resumes. Input is validated by `parseSearchFilterInput()` (`src/lib/search-filter-input.ts`).
 - **Job titles** live in `resumes.parsed_data.job_titles` and are editable via `PATCH /api/resumes/[id]` (`normalizeJobTitles()`, max 8). Only the first 4 are used as search queries.

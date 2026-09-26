@@ -4,26 +4,26 @@ import * as dotenv from "dotenv";
 dotenv.config({ path: ".env.local" });
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
+// Service role client: the demo account is read-only at the RLS layer, so
+// seeding must bypass RLS rather than authenticate as the demo user.
+const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
 async function seed() {
     console.log("Starting demo seed process...");
 
-    // Login to demo account
-    const { data: authData, error: authErr } = await supabase.auth.signInWithPassword({
-        email: "demo@guidepostai.app",
-        password: "demo123"
-    });
+    // Look up the demo user (created manually in Supabase Auth)
+    const { data: userData, error: userErr } = await supabase.auth.admin.listUsers({ perPage: 1000 });
+    const demoUser = userData?.users.find((u) => u.email === "demo@guidepostai.app");
 
-    if (authErr || !authData.user) {
-        console.error("Failed to login to demo account:", authErr);
+    if (userErr || !demoUser) {
+        console.error("Demo user demo@guidepostai.app not found. Create it in Supabase Auth first.", userErr);
         return;
     }
 
-    const userId = authData.user.id;
-    console.log("Logged in as Demo User:", userId);
+    const userId = demoUser.id;
+    console.log("Found Demo User:", userId);
 
     console.log("Cleaning up existing demo data...");
     await supabase.from("applications").delete().eq("user_id", userId);
@@ -34,7 +34,7 @@ async function seed() {
     console.log("Inserting mock resume...");
     const { data: resumeData, error: resumeErr } = await supabase.from("resumes").insert({
         file_name: "demo_swe_resume.pdf",
-        file_path: "demo/demo_swe_resume.pdf",
+        file_path: `${userId}/demo_swe_resume.pdf`,
         is_active: true,
         parsed_data: {
             summary: "Experienced software engineer with a strong background in frontend and backend development.",

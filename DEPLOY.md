@@ -30,8 +30,9 @@
    `db-backups`. Backups contain every user's data, and the demo account's
    credentials are public by design.
 
-   For `resumes`, scope access to each user's own folder (uploads are stored
-   under `<user_id>/`):
+   For `resumes`, `setup.sql` already creates the per-user-folder policy and
+   the demo-account write restrictions shown below (uploads are stored under
+   `<user_id>/`):
 
    ```sql
    create policy "Users manage their own resume files"
@@ -74,7 +75,7 @@ Vercel auto-detects Next.js -- no special build settings needed.
 - **Cron job**: `vercel.json` configures a daily search at 16:00 UTC (`0 16 * * *`). Vercel Cron is available on all plans.
 - **Auth**: Visit your deployed URL, enter your email, and click the magic link to sign in. Sign-ups are disabled by default; create users under **Supabase > Authentication > Users**.
 - **Supabase auth redirect**: Add your Vercel URL to **Supabase > Authentication > URL Configuration > Redirect URLs** (e.g. `https://your-app.vercel.app/**`).
-- **(Optional) Demo account**: create a user `demo@guidepostai.app` and run `npx tsx scripts/seed-demo.ts` to populate sample data. Non-GET API requests from the demo account are blocked by the app proxy.
+- **(Optional) Demo account**: create a user `demo@guidepostai.app` and run `npx tsx scripts/seed-demo.ts` to populate sample data (requires `SUPABASE_SERVICE_ROLE_KEY` in `.env.local`; the script uses the service role because demo writes are denied at the database layer). Non-GET API requests from the demo account are blocked by the app proxy AND by restrictive RLS policies, so it is read-only even against direct PostgREST/Storage calls.
 
 ## Local Development
 

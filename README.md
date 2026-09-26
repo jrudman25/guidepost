@@ -139,8 +139,10 @@ npm test
    | `db-backups` | Database snapshots | `application/json` | Service role only |
 
    `pipeline-logs` and `db-backups` are written by the service role (cron) and must NOT have
-   `authenticated` user policies - backups contain all users' data. For `resumes`, scope
-   access to the user's own folder (uploads are stored under `<user_id>/`):
+   `authenticated` user policies - backups contain all users' data. For `resumes`, `setup.sql`
+   creates a policy scoping access to the user's own folder (uploads are stored under
+   `<user_id>/`), plus restrictive policies that make the demo account read-only at the
+   database layer:
 
    ```sql
    create policy "Users manage their own resume files"
@@ -153,7 +155,7 @@ npm test
 
 4. **(Optional) Demo account** - To set up a read-only demo mode:
    - Create a user with email `demo@guidepostai.app` in Supabase Auth
-   - Run `npx tsx scripts/seed-demo.ts` to populate sample data with curated demo jobs (this only affects the demo account via RLS and an explicit demo user filter)
+   - Run `npx tsx scripts/seed-demo.ts` to populate sample data with curated demo jobs (requires `SUPABASE_SERVICE_ROLE_KEY` in `.env.local`; writes go through the service role since the demo account cannot write at the RLS layer)
 
 > **Note:** The `supabase/migrations/` directory contains the historical incremental migrations used during development. For fresh installs, use `supabase/setup.sql` instead.
 

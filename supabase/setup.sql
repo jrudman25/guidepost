@@ -98,7 +98,10 @@ create index if not exists status_history_app_idx on public.status_history(appli
 -- Trigger: auto-log status changes
 -- ============================================
 create or replace function log_application_status_change()
-returns trigger as $$
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
 declare
   stage_order constant text[] := array['applied', 'screening', 'interview', 'offer'];
   new_stage_idx int;
@@ -118,7 +121,7 @@ begin
   end if;
   return NEW;
 end;
-$$ language plpgsql;
+$$;
 
 drop trigger if exists application_status_change on public.applications;
 create trigger application_status_change
@@ -164,3 +167,84 @@ create policy "Users can view their own status_history" on public.status_history
 create policy "Users can insert their own status_history" on public.status_history for insert with check (auth.uid() = user_id);
 create policy "Users can update their own status_history" on public.status_history for update using (auth.uid() = user_id);
 create policy "Users can delete their own status_history" on public.status_history for delete using (auth.uid() = user_id);
+
+-- ============================================
+-- Storage policies (bucket `resumes`; pipeline-logs and db-backups are
+-- service-role-only and must NOT have authenticated policies)
+-- ============================================
+create policy "Users manage their own resume files"
+on storage.objects for all to authenticated
+using (bucket_id = 'resumes' and (storage.foldername(name))[1] = auth.uid()::text)
+with check (bucket_id = 'resumes' and (storage.foldername(name))[1] = auth.uid()::text);
+
+-- ============================================
+-- Demo account read-only (defense in depth alongside src/proxy.ts):
+-- the public demo credentials must not be able to write via direct
+-- PostgREST/Storage calls either. Keyed on the JWT email claim;
+-- `is distinct from` is null-safe. Service role bypasses RLS.
+-- ============================================
+create policy "demo_no_insert" on storage.objects
+  as restrictive for insert to authenticated
+  with check ((auth.jwt() ->> 'email') is distinct from 'demo@guidepostai.app');
+create policy "demo_no_update" on storage.objects
+  as restrictive for update to authenticated
+  using ((auth.jwt() ->> 'email') is distinct from 'demo@guidepostai.app')
+  with check ((auth.jwt() ->> 'email') is distinct from 'demo@guidepostai.app');
+create policy "demo_no_delete" on storage.objects
+  as restrictive for delete to authenticated
+  using ((auth.jwt() ->> 'email') is distinct from 'demo@guidepostai.app');
+
+create policy "demo_no_insert" on public.resumes
+  as restrictive for insert to authenticated
+  with check ((auth.jwt() ->> 'email') is distinct from 'demo@guidepostai.app');
+create policy "demo_no_update" on public.resumes
+  as restrictive for update to authenticated
+  using ((auth.jwt() ->> 'email') is distinct from 'demo@guidepostai.app')
+  with check ((auth.jwt() ->> 'email') is distinct from 'demo@guidepostai.app');
+create policy "demo_no_delete" on public.resumes
+  as restrictive for delete to authenticated
+  using ((auth.jwt() ->> 'email') is distinct from 'demo@guidepostai.app');
+
+create policy "demo_no_insert" on public.search_filters
+  as restrictive for insert to authenticated
+  with check ((auth.jwt() ->> 'email') is distinct from 'demo@guidepostai.app');
+create policy "demo_no_update" on public.search_filters
+  as restrictive for update to authenticated
+  using ((auth.jwt() ->> 'email') is distinct from 'demo@guidepostai.app')
+  with check ((auth.jwt() ->> 'email') is distinct from 'demo@guidepostai.app');
+create policy "demo_no_delete" on public.search_filters
+  as restrictive for delete to authenticated
+  using ((auth.jwt() ->> 'email') is distinct from 'demo@guidepostai.app');
+
+create policy "demo_no_insert" on public.job_listings
+  as restrictive for insert to authenticated
+  with check ((auth.jwt() ->> 'email') is distinct from 'demo@guidepostai.app');
+create policy "demo_no_update" on public.job_listings
+  as restrictive for update to authenticated
+  using ((auth.jwt() ->> 'email') is distinct from 'demo@guidepostai.app')
+  with check ((auth.jwt() ->> 'email') is distinct from 'demo@guidepostai.app');
+create policy "demo_no_delete" on public.job_listings
+  as restrictive for delete to authenticated
+  using ((auth.jwt() ->> 'email') is distinct from 'demo@guidepostai.app');
+
+create policy "demo_no_insert" on public.applications
+  as restrictive for insert to authenticated
+  with check ((auth.jwt() ->> 'email') is distinct from 'demo@guidepostai.app');
+create policy "demo_no_update" on public.applications
+  as restrictive for update to authenticated
+  using ((auth.jwt() ->> 'email') is distinct from 'demo@guidepostai.app')
+  with check ((auth.jwt() ->> 'email') is distinct from 'demo@guidepostai.app');
+create policy "demo_no_delete" on public.applications
+  as restrictive for delete to authenticated
+  using ((auth.jwt() ->> 'email') is distinct from 'demo@guidepostai.app');
+
+create policy "demo_no_insert" on public.status_history
+  as restrictive for insert to authenticated
+  with check ((auth.jwt() ->> 'email') is distinct from 'demo@guidepostai.app');
+create policy "demo_no_update" on public.status_history
+  as restrictive for update to authenticated
+  using ((auth.jwt() ->> 'email') is distinct from 'demo@guidepostai.app')
+  with check ((auth.jwt() ->> 'email') is distinct from 'demo@guidepostai.app');
+create policy "demo_no_delete" on public.status_history
+  as restrictive for delete to authenticated
+  using ((auth.jwt() ->> 'email') is distinct from 'demo@guidepostai.app');
