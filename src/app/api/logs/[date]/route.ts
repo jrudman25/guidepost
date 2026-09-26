@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { createServiceClient } from "@/lib/supabase/service";
 
 const STORAGE_BUCKET = "pipeline-logs";
 
@@ -29,7 +30,10 @@ export async function GET(
 
         const filePath = `${date}.md`;
 
-        const { data, error } = await supabase.storage
+        // pipeline-logs is service-role-only at the storage layer; access is
+        // gated by the auth checks above.
+        const service = createServiceClient();
+        const { data, error } = await service.storage
             .from(STORAGE_BUCKET)
             .download(filePath);
 

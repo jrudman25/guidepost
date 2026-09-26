@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { createServiceClient } from "@/lib/supabase/service";
 
 const STORAGE_BUCKET = "pipeline-logs";
 
@@ -17,7 +18,10 @@ export async function GET() {
             return NextResponse.json({ error: "Not available" }, { status: 403 });
         }
 
-        const { data: files, error } = await supabase.storage
+        // pipeline-logs is service-role-only at the storage layer; access is
+        // gated here instead (any signed-in non-demo user).
+        const service = createServiceClient();
+        const { data: files, error } = await service.storage
             .from(STORAGE_BUCKET)
             .list("", { limit: 100, sortBy: { column: "name", order: "desc" } });
 

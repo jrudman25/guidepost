@@ -34,12 +34,19 @@ export async function proxy(request: NextRequest) {
         data: { user },
     } = await supabase.auth.getUser();
 
-    // If user is not signed in and the current path isn't /login, redirect to /login
+    // If user is not signed in and the current path isn't /login, redirect to
+    // /login for pages but return a JSON 401 for API routes
     if (
         !user &&
         !request.nextUrl.pathname.startsWith("/login") &&
         !request.nextUrl.pathname.startsWith("/api/auth")
     ) {
+        if (request.nextUrl.pathname.startsWith("/api/")) {
+            return NextResponse.json(
+                { error: "Unauthorized" },
+                { status: 401 }
+            );
+        }
         const url = request.nextUrl.clone();
         url.pathname = "/login";
         return NextResponse.redirect(url);
