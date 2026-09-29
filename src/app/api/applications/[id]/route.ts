@@ -46,8 +46,10 @@ export async function PATCH(
         }
 
         // Validate dates
-        const today = new Date().toISOString().split("T")[0];
-        if (body.applied_at && body.applied_at > today) {
+        // applied_at is the user's local date. Timezones go up to UTC+14, so a
+        // legitimate "today" can be at most one day ahead of the UTC date.
+        const maxDate = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+        if (body.applied_at && body.applied_at > maxDate) {
             return NextResponse.json(
                 { error: "Applied date cannot be in the future" },
                 { status: 400 }

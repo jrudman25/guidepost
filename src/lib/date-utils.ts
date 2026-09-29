@@ -19,6 +19,21 @@ export function parseLocalDate(dateStr: string): Date {
 }
 
 /**
+ * Format a Date as `YYYY-MM-DD` in the local timezone.
+ *
+ * `new Date().toISOString().split("T")[0]` returns the UTC date, which
+ * is already "tomorrow" in the evening for western timezones and still
+ * "yesterday" in the morning for eastern ones. Use this for date-only
+ * values that mean "today" to the user.
+ */
+export function localDateString(date: Date = new Date()): string {
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, "0");
+    const d = String(date.getDate()).padStart(2, "0");
+    return `${y}-${m}-${d}`;
+}
+
+/**
  * Return the number of whole days between a date string and now.
  */
 export function daysSince(dateStr: string): number {
