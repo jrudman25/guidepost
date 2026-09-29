@@ -16,6 +16,7 @@ export interface SerpApiJob {
     };
     job_id?: string;
     share_link?: string;
+    via?: string;
     apply_options?: Array<{
         title: string;
         link: string;
@@ -241,6 +242,11 @@ function parseSerpApiPostedAt(postedAt: string | undefined): Date | null {
     return new Date(now - amount * multipliers[unit]);
 }
 
+function getJobSource(job: SerpApiJob): string {
+    const via = job.via?.replace(/^via\s+/i, "").trim();
+    return via || job.apply_options?.[0]?.title?.trim() || "google_jobs";
+}
+
 /**
  * Normalize a SerpAPI job result into our database format.
  */
@@ -269,7 +275,7 @@ export function normalizeJob(
         location: job.location || null,
         description: job.description || null,
         url: applyLink,
-        source: "google_jobs",
+        source: getJobSource(job),
         posted_at: parseSerpApiPostedAt(job.detected_extensions?.posted_at)?.toISOString() || null,
         is_remote: detectRemote(job),
         salary_info: job.detected_extensions?.salary || null,

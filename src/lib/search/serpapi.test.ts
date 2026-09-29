@@ -40,9 +40,37 @@ describe("normalizeJob", () => {
         expect(result.company).toBe("Acme Corp");
         expect(result.location).toBe("San Francisco, CA");
         expect(result.description).toBe("Build cool stuff");
-        expect(result.source).toBe("google_jobs");
+        expect(result.source).toBe("Company Site");
         expect(result.is_remote).toBe(false);
         expect(result.salary_info).toBe("$120K - $150K");
+    });
+
+    it("strips the 'via ' prefix from the via field for source", () => {
+        const job = makeJob({ via: "via LinkedIn" });
+        const result = normalizeJob(job, "r1");
+        expect(result.source).toBe("LinkedIn");
+    });
+
+    it("uses the via field directly when it has no prefix", () => {
+        const job = makeJob({ via: "Indeed" });
+        const result = normalizeJob(job, "r1");
+        expect(result.source).toBe("Indeed");
+    });
+
+    it("falls back to the first apply_options title when via is missing", () => {
+        const job = makeJob({
+            apply_options: [
+                { title: "Company Site", link: "https://acme.com/apply" },
+            ],
+        });
+        const result = normalizeJob(job, "r1");
+        expect(result.source).toBe("Company Site");
+    });
+
+    it("defaults source to google_jobs when neither via nor apply_options exist", () => {
+        const job = makeJob({ via: undefined, apply_options: undefined });
+        const result = normalizeJob(job, "r1");
+        expect(result.source).toBe("google_jobs");
     });
 
     it("prefers the first apply_options link as URL", () => {

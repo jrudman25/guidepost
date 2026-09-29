@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { buildSearchQueries } from "@/lib/search/query-builder";
 import { searchJobs, normalizeJob } from "@/lib/search/serpapi";
 import { isLocationCompatible } from "@/lib/search/location-filter";
+import { isExcludedCompany } from "@/lib/search/company-filter";
 import { scoreJobBatch } from "@/lib/search/matcher";
 import { PipelineLogger } from "@/lib/pipeline-logger";
 import type { ParsedResumeData, SearchFilter } from "@/lib/types";
@@ -146,12 +147,7 @@ export async function executeJobSearch(
 
                 for (const job of jobs) {
                     // Skip excluded companies
-                    if (
-                        searchFilters.excluded_companies?.some(
-                            (exc) =>
-                                job.company_name.toLowerCase().includes(exc.toLowerCase())
-                        )
-                    ) {
+                    if (isExcludedCompany(job.company_name, searchFilters.excluded_companies)) {
                         skippedExcluded++;
                         continue;
                     }

@@ -1,21 +1,19 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
-import Link from "next/link";
 import type { JobListing } from "@/lib/types";
-import { parseLocalDate, toLocalDateString } from "@/lib/date-utils";
+import { displaySource, formatPostedAt, getScoreColor } from "@/lib/job-display";
+import { useMediaQuery } from "@/lib/use-media-query";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
     Loader2,
     Search,
-    ExternalLink,
     Bookmark,
-    X as XIcon,
-    CheckCircle,
     MapPin,
     Building2,
     Wifi,
@@ -26,32 +24,12 @@ import {
     Trash2,
     Inbox,
     ArrowUpDown,
+    Globe,
 } from "lucide-react";
 import { toast } from "sonner";
-import { cn, handleApiError, toastApiError, safeHttpUrl } from "@/lib/utils";
+import { cn, handleApiError, toastApiError } from "@/lib/utils";
 import { PaginationControls } from "@/components/pagination-controls";
-
-function getScoreColor(score: number | null): string {
-    if (!score) return "bg-muted text-muted-foreground";
-    if (score >= 80) return "bg-emerald-500/15 text-emerald-400 border-emerald-500/30";
-    if (score >= 60) return "bg-blue-500/15 text-blue-400 border-blue-500/30";
-    if (score >= 40) return "bg-amber-500/15 text-amber-400 border-amber-500/30";
-    return "bg-red-500/15 text-red-400 border-red-500/30";
-}
-
-function formatPostedAt(postedAt: string | null): string | null {
-    if (!postedAt) return null;
-
-    const posted = new Date(postedAt);
-    if (Number.isNaN(posted.getTime())) return null;
-
-    const days = Math.floor((Date.now() - posted.getTime()) / (1000 * 60 * 60 * 24));
-    if (days <= 0) return "Posted today";
-    if (days === 1) return "Posted 1 day ago";
-    if (days < 30) return `Posted ${days} days ago`;
-
-    return `Posted ${posted.toLocaleDateString()}`;
-}
+import { JobDetail } from "@/components/job-detail";
 
 export default function InboxPage() {
     const [jobs, setJobs] = useState<JobListing[]>([]);
@@ -68,6 +46,8 @@ export default function InboxPage() {
     const [debouncedSearch, setDebouncedSearch] = useState("");
     const [sortBy, setSortBy] = useState("score");
     const [unseenOnly, setUnseenOnly] = useState(false);
+    const [latestDiscoveredAt, setLatestDiscoveredAt] = useState<string | null>(null);
+    const isDesktop = useMediaQuery("(min-width: 1024px)");
     const debounceRef = useRef<NodeJS.Timeout | null>(null);
     const statusParam = activeTab === "all" ? undefined : activeTab === "low-match" ? "new" : activeTab;
     const scoreBandParam = activeTab === "new" ? "regular" : activeTab === "low-match" ? "low" : undefined;
@@ -135,6 +115,23 @@ export default function InboxPage() {
         return () => window.clearTimeout(timeout);
     }, [fetchJobs, page, debouncedSearch, sortBy, unseenOnly, statusParam, scoreBandParam]);
 
+    const fetchLatestDiscoveredAt = useCallback(async () => {
+        try {
+            const response = await fetch("/api/jobs?sort=newest&limit=1");
+            const data = await response.json();
+            setLatestDiscoveredAt(data.jobs?.[0]?.discovered_at ?? null);
+        } catch (error) {
+            console.error("Failed to fetch latest listing:", error);
+        }
+    }, []);
+
+    useEffect(() => {
+        const timeout = window.setTimeout(() => {
+            fetchLatestDiscoveredAt();
+        }, 0);
+        return () => window.clearTimeout(timeout);
+    }, [fetchLatestDiscoveredAt]);
+
     // Debounce search input
     function handleSearchChange(value: string) {
         setSearchTerm(value);
@@ -160,6 +157,7 @@ export default function InboxPage() {
             toast.success(`Found ${data.new_jobs_found} new job listings!`);
             setPage(1);
             fetchJobs(statusParam, 1, "", sortBy, unseenOnly, scoreBandParam);
+            fetchLatestDiscoveredAt();
         } catch (error) {
             toastApiError(error, "Search failed");
         } finally {
@@ -173,7 +171,7 @@ export default function InboxPage() {
     ) {
         try {
             // Check if this unseen job is leaving "new" status
-            const job = jobs.find((j) => j.id === jobId);
+            const job = jobs.find((j) => j.id === jobId) ?? selectedJob;
             const wasUnseen = job && !job.seen_at && isRegularNewJob(job);
 
             const now = new Date().toISOString();
@@ -227,7 +225,28 @@ export default function InboxPage() {
                 applied: "Marked as applied",
                 new: "Moved back to inbox",
             };
-            toast.success(labels[status] || "Status updated");
+            let successMessage: string | null = labels[status] || "Status updated";
+            if (status === "applied" && job && job.status !== "applied") {
+                try {
+                    const appResponse = await fetch("/api/applications", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                            job_listing_id: job.id,
+                            job_title: job.title,
+                            company: job.company,
+                            url: job.url,
+                            applied_via: displaySource(job.source) ?? undefined,
+                        }),
+                    });
+                    await handleApiError(appResponse, "Failed to add to Applications");
+                    successMessage = "Marked as applied and added to Applications";
+                } catch (e) {
+                    toastApiError(e, "Marked as applied, but failed to add to Applications");
+                    successMessage = null;
+                }
+            }
+            if (successMessage) toast.success(successMessage);
         } catch (e) {
             toastApiError(e, "Failed to update job status");
         }
@@ -341,7 +360,7 @@ export default function InboxPage() {
             </div>
 
             {/* Scan timing info */}
-            <ScanTimingInfo jobs={jobs} />
+            <ScanTimingInfo latestDiscoveredAt={latestDiscoveredAt} />
 
             {/* Tabs */}
             <Tabs value={activeTab} onValueChange={(val) => { setActiveTab(val); setPage(1); }}>
@@ -469,7 +488,18 @@ export default function InboxPage() {
                         {jobs.map((job) => (
                             <div
                                 key={job.id}
+                                role="button"
+                                tabIndex={0}
                                 onClick={() => selectJob(job)}
+                                onKeyDown={(e) => {
+                                    if (e.target !== e.currentTarget) return;
+                                    if (e.key === "Enter") {
+                                        selectJob(job);
+                                    } else if (e.key === " ") {
+                                        e.preventDefault();
+                                        selectJob(job);
+                                    }
+                                }}
                                 className={cn(
                                     "flex items-start gap-2 rounded-xl border border-border bg-card p-4 transition-colors hover:border-primary/50 cursor-pointer",
                                     selectedJob?.id === job.id && "border-primary ring-1 ring-primary"
@@ -483,6 +513,7 @@ export default function InboxPage() {
                                 </div>
                                 {/* Checkbox */}
                                 <button
+                                    aria-label="Select job"
                                     onClick={(e) => {
                                         e.stopPropagation();
                                         toggleSelect(job.id);
@@ -531,11 +562,17 @@ export default function InboxPage() {
                                                         {formatPostedAt(job.posted_at)}
                                                     </span>
                                                 )}
+                                                {displaySource(job.source) && (
+                                                    <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                                                        <Globe className="h-3 w-3" />
+                                                        via {displaySource(job.source)}
+                                                    </span>
+                                                )}
                                                 {job.status === "saved" && (() => {
                                                     const days = Math.floor(
                                                         (Date.now() - new Date(job.discovered_at).getTime()) / (1000 * 60 * 60 * 24)
                                                     );
-                                                    const label = days === 0 ? "Saved today" : days === 1 ? "Saved 1 day ago" : `Saved ${days} days ago`;
+                                                    const label = days === 0 ? "Found today" : days === 1 ? "Found 1 day ago" : `Found ${days} days ago`;
                                                     const color = days <= 3
                                                         ? "text-emerald-500 border-emerald-500/30 bg-emerald-500/10"
                                                         : days <= 7
@@ -573,134 +610,26 @@ export default function InboxPage() {
                     {/* Job detail panel */}
                     {selectedJob && (
                         <div className="hidden w-1/2 space-y-4 rounded-xl border border-border bg-card p-6 lg:block sticky top-6">
-                            <div className="flex items-start justify-between">
-                                <div>
-                                    <h2 className="text-xl font-bold">{selectedJob.title}</h2>
-                                    <p className="mt-1 text-muted-foreground">
-                                        {selectedJob.company}
-                                    </p>
-                                    {selectedJob.discovered_at && (
-                                        <p className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground">
-                                            <Clock className="h-3 w-3" />
-                                            Found on {parseLocalDate(toLocalDateString(selectedJob.discovered_at)).toLocaleDateString()} at{" "}
-                                            {parseLocalDate(selectedJob.discovered_at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}
-                                        </p>
-                                    )}
-                                </div>
-                                <Badge
-                                    variant="outline"
-                                    className={cn(
-                                        "text-lg font-bold",
-                                        getScoreColor(selectedJob.match_score)
-                                    )}
-                                >
-                                    {selectedJob.match_score ?? "\u2014"}%
-                                </Badge>
-                            </div>
-
-                            {/* Meta info */}
-                            <div className="flex flex-wrap gap-2">
-                                {selectedJob.location && (
-                                    <Badge variant="secondary">
-                                        <MapPin className="mr-1 h-3 w-3" />
-                                        {selectedJob.location}
-                                    </Badge>
-                                )}
-                                {selectedJob.is_remote && (
-                                    <Badge variant="secondary">
-                                        <Wifi className="mr-1 h-3 w-3" />
-                                        Remote
-                                    </Badge>
-                                )}
-                                {selectedJob.salary_info && (
-                                    <Badge variant="secondary">
-                                        <DollarSign className="mr-1 h-3 w-3" />
-                                        {selectedJob.salary_info}
-                                    </Badge>
-                                )}
-                                {formatPostedAt(selectedJob.posted_at) && (
-                                    <Badge variant="secondary">
-                                        <Clock className="mr-1 h-3 w-3" />
-                                        {formatPostedAt(selectedJob.posted_at)}
-                                    </Badge>
-                                )}
-                            </div>
-
-                            {/* Match reasoning */}
-                            {selectedJob.match_reasoning && (
-                                <div className="rounded-lg bg-muted/50 p-3">
-                                    <p className="text-xs font-medium uppercase text-muted-foreground">
-                                        Match Analysis
-                                    </p>
-                                    <p className="mt-1 text-sm">{selectedJob.match_reasoning}</p>
-                                </div>
-                            )}
-
-                            {/* Actions */}
-                            <div className="flex gap-2">
-                                {selectedJob.status !== "saved" && (
-                                    <Button
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={() => updateJobStatus(selectedJob.id, "saved")}
-                                    >
-                                        <Bookmark className="mr-1 h-4 w-4" />
-                                        Save
-                                    </Button>
-                                )}
-                                {selectedJob.status !== "applied" && (
-                                    <Button
-                                        size="sm"
-                                        onClick={() => updateJobStatus(selectedJob.id, "applied")}
-                                    >
-                                        <CheckCircle className="mr-1 h-4 w-4" />
-                                        Mark Applied
-                                    </Button>
-                                )}
-                                {selectedJob.status !== "dismissed" ? (
-                                    <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        onClick={() => updateJobStatus(selectedJob.id, "dismissed")}
-                                    >
-                                        <XIcon className="mr-1 h-4 w-4" />
-                                        Dismiss
-                                    </Button>
-                                ) : (
-                                    <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        onClick={() => updateJobStatus(selectedJob.id, "new")}
-                                    >
-                                        <Inbox className="mr-1 h-4 w-4" />
-                                        Back to Inbox
-                                    </Button>
-                                )}
-                                {safeHttpUrl(selectedJob.url) && (
-                                    <Button variant="outline" size="sm" asChild>
-                                        <Link href={safeHttpUrl(selectedJob.url)!} target="_blank">
-                                            <ExternalLink className="mr-1 h-4 w-4" />
-                                            View Posting
-                                        </Link>
-                                    </Button>
-                                )}
-                            </div>
-
-                            {/* Description */}
-                            {selectedJob.description && (
-                                <div className="max-h-96 overflow-y-auto rounded-lg bg-muted/50 p-4">
-                                    <p className="text-xs font-medium uppercase text-muted-foreground mb-2">
-                                        Job Description
-                                    </p>
-                                    <p className="whitespace-pre-wrap text-sm leading-relaxed">
-                                        {selectedJob.description}
-                                    </p>
-                                </div>
-                            )}
+                            <JobDetail job={selectedJob} onStatusChange={updateJobStatus} />
                         </div>
                     )}
                 </div>
             )}
+
+            {/* Mobile job detail dialog */}
+            <Dialog
+                open={!!selectedJob && !isDesktop}
+                onOpenChange={(open) => { if (!open) setSelectedJob(null); }}
+            >
+                <DialogContent className="max-h-[90vh] overflow-y-auto pt-12 sm:max-w-2xl">
+                    <DialogTitle className="sr-only">
+                        {selectedJob?.title ?? "Job details"}
+                    </DialogTitle>
+                    {selectedJob && (
+                        <JobDetail job={selectedJob} onStatusChange={updateJobStatus} />
+                    )}
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }
@@ -742,14 +671,12 @@ function formatRelativeTime(date: Date): string {
     return "just now";
 }
 
-function ScanTimingInfo({ jobs }: { jobs: JobListing[] }) {
+function ScanTimingInfo({ latestDiscoveredAt }: { latestDiscoveredAt: string | null }) {
     const lastScanTime = useMemo(() => {
-        if (jobs.length === 0) return null;
-        const dates = jobs
-            .map((j) => new Date(j.discovered_at))
-            .sort((a, b) => b.getTime() - a.getTime());
-        return dates[0];
-    }, [jobs]);
+        if (!latestDiscoveredAt) return null;
+        const date = new Date(latestDiscoveredAt);
+        return Number.isNaN(date.getTime()) ? null : date;
+    }, [latestDiscoveredAt]);
 
     const nextAutoScan = useMemo(() => getNextAutoScan(), []);
 
@@ -757,10 +684,10 @@ function ScanTimingInfo({ jobs }: { jobs: JobListing[] }) {
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
             <span className="flex items-center gap-1">
                 <Clock className="h-3 w-3" />
-                Last scan:{" "}
+                Latest listing found:{" "}
                 {lastScanTime
                     ? formatRelativeTime(lastScanTime)
-                    : "No scans yet"}
+                    : "None yet"}
             </span>
             <span>
                 Next auto-scan: {formatRelativeTime(nextAutoScan)} (
