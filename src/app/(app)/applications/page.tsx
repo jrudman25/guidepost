@@ -44,6 +44,8 @@ const STATUS_OPTIONS: { value: ApplicationStatus; label: string }[] = [
     { value: "screening", label: "Screening" },
     { value: "interview", label: "Interview" },
     { value: "offer", label: "Offer" },
+    { value: "accepted", label: "Accepted" },
+    { value: "declined", label: "Declined" },
     { value: "rejected", label: "Rejected" },
     { value: "ghosted", label: "Ghosted" },
 ];
@@ -53,6 +55,8 @@ const STATUS_COLORS: Record<ApplicationStatus, string> = {
     screening: "bg-amber-500/15 text-amber-400 border-amber-500/30",
     interview: "bg-purple-500/15 text-purple-400 border-purple-500/30",
     offer: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30",
+    accepted: "bg-green-500/15 text-green-400 border-green-500/30",
+    declined: "bg-orange-500/15 text-orange-400 border-orange-500/30",
     rejected: "bg-red-500/15 text-red-400 border-red-500/30",
     ghosted: "bg-zinc-500/15 text-zinc-400 border-zinc-500/30",
 };
@@ -408,7 +412,7 @@ export default function ApplicationsPage() {
             </div>
 
             {/* Filters */}
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
                 {["all", ...STATUS_OPTIONS.map((s) => s.value)].map((status) => (
                     <Button
                         key={status}

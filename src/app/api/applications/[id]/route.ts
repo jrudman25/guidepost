@@ -18,7 +18,7 @@ export async function PATCH(
         // (log_application_status_change) so we only need to set the new status.
         const updateData: Record<string, unknown> = {};
         if (body.status !== undefined) {
-            const validStatuses = ["applied", "screening", "interview", "offer", "rejected", "ghosted"];
+            const validStatuses = ["applied", "screening", "interview", "offer", "accepted", "declined", "rejected", "ghosted"];
             if (!validStatuses.includes(body.status)) {
                 return NextResponse.json(
                     { error: `Invalid status. Must be one of: ${validStatuses.join(", ")}` },

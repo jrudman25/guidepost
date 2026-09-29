@@ -73,6 +73,8 @@ export type ApplicationStatus =
     | "screening"
     | "interview"
     | "offer"
+    | "accepted"
+    | "declined"
     | "rejected"
     | "ghosted";
 

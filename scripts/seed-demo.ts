@@ -217,7 +217,10 @@ async function seed() {
         if (r > 0.7) status = "ghosted";
         if (r > 0.85) status = "screening";
         if (r > 0.93) status = "interview";
-        if (r > 0.98) status = "offer";
+        if (r > 0.96) {
+            const outcome = Math.random();
+            status = outcome < 0.4 ? "offer" : outcome < 0.8 ? "accepted" : "declined";
+        }
 
         let heardBackDate = null;
         if (status !== "applied" && status !== "ghosted") {
@@ -230,7 +233,7 @@ async function seed() {
         let furthestStage = "applied";
         if (status === "screening") furthestStage = "screening";
         else if (status === "interview") furthestStage = "interview";
-        else if (status === "offer") furthestStage = "offer";
+        else if (status === "offer" || status === "accepted" || status === "declined") furthestStage = "offer";
         else if (status === "rejected" || status === "ghosted") {
             // Randomize how far they got before rejection
             const fr = Math.random();
