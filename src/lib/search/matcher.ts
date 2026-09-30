@@ -5,6 +5,9 @@ import type { PipelineLogger } from "@/lib/pipeline-logger";
 export interface MatchResult {
     score: number;
     reasoning: string;
+    // True when scoring failed; failed results are not persisted so the job
+    // can be rescored in a future search.
+    failed?: boolean;
 }
 
 const BATCH_MATCH_PROMPT = `You are a job matching expert. Score how well each job listing below matches a candidate's resume.
@@ -81,13 +84,31 @@ const SENIORITY_LABELS: Record<string, string> = {
 
 const BATCH_SIZE = 5;
 const LARGE_EXPERIENCE_GAP_SCORE_CAP = 24;
+const MAX_DESCRIPTION_CHARS = 4000;
+
+const SCORING_FAILED_RESULT: MatchResult = {
+    score: 0,
+    reasoning: "Could not generate match score.",
+    failed: true,
+};
+
+// JSON mode schemas keep Gemini output parseable
+const MATCH_RESULT_SCHEMA = {
+    type: "object",
+    properties: {
+        score: { type: "number" },
+        reasoning: { type: "string" },
+    },
+    required: ["score", "reasoning"],
+};
+const BATCH_MATCH_SCHEMA = { type: "array", items: MATCH_RESULT_SCHEMA };
 
 type JobInput = { title: string; company: string; description: string | null };
 
 function sanitizeReasoning(reasoning: unknown): string {
     const text = typeof reasoning === "string" && reasoning.trim()
         ? reasoning.trim()
-        : "Could not generate match score - defaulted to 50.";
+        : "No reasoning provided.";
 
     return text
         .replace(/\b(?:just like|similar to|as with|compared with|compared to)\s+job\s+\d+[:,]?\s*/gi, "")
@@ -109,7 +130,11 @@ function hasLargeExperienceGap(job: JobInput, resume: ParsedResumeData): boolean
 }
 
 function normalizeMatchResult(result: Partial<MatchResult>, job: JobInput, resume: ParsedResumeData): MatchResult {
-    let score = Math.max(0, Math.min(100, Math.round(result.score ?? 50)));
+    if (typeof result.score !== "number" || !Number.isFinite(result.score)) {
+        return { ...SCORING_FAILED_RESULT };
+    }
+
+    let score = Math.max(0, Math.min(100, Math.round(result.score)));
     let reasoning = sanitizeReasoning(result.reasoning);
 
     if (hasLargeExperienceGap(job, resume) && score > LARGE_EXPERIENCE_GAP_SCORE_CAP) {
@@ -138,10 +163,10 @@ export async function scoreJobMatch(
         .replace("{seniority}", SENIORITY_LABELS[targetSeniority] || "Any level")
         .replace("{jobTitle}", job.title)
         .replace("{company}", job.company)
-        .replace("{description}", (job.description || "No description available").substring(0, 2000));
+        .replace("{description}", (job.description || "No description available").substring(0, MAX_DESCRIPTION_CHARS));
 
     try {
-        const { text, model } = await generateWithFallback(prompt, 15000);
+        const { text, model } = await generateWithFallback(prompt, 15000, { responseJsonSchema: MATCH_RESULT_SCHEMA });
         logger?.info("scoring", `Scored with model: ${model}`);
         const cleaned = text.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
         const parsed = JSON.parse(cleaned) as MatchResult;
@@ -149,10 +174,7 @@ export async function scoreJobMatch(
         return normalizeMatchResult(parsed, job, resume);
     } catch (error) {
         console.error("Match scoring error:", error);
-        return {
-            score: 50,
-            reasoning: "Could not generate match score \u2014 defaulted to 50.",
-        };
+        return { ...SCORING_FAILED_RESULT };
     }
 }
 
@@ -169,7 +191,7 @@ async function scoreBatchSingle(
     // Build the job listings section
     const jobListingsText = jobs
         .map((job, i) => {
-            const desc = (job.description || "No description available").substring(0, 1500);
+            const desc = (job.description || "No description available").substring(0, MAX_DESCRIPTION_CHARS);
             return `--- Job ${i + 1} ---\nTitle: ${job.title}\nCompany: ${job.company}\nDescription: ${desc}`;
         })
         .join("\n\n");
@@ -183,7 +205,7 @@ async function scoreBatchSingle(
         .replace("{jobListings}", jobListingsText);
 
     try {
-        const { text, model } = await generateWithFallback(prompt, 60000);
+        const { text, model } = await generateWithFallback(prompt, 60000, { responseJsonSchema: BATCH_MATCH_SCHEMA });
         logger?.info("scoring", `Batch used model: ${model}`);
         const cleaned = text.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
         const parsed = JSON.parse(cleaned) as MatchResult[];
@@ -195,8 +217,12 @@ async function scoreBatchSingle(
             } else {
                 console.error(`[batch-score] ${msg}`);
             }
-            // Fall back to defaults for any missing entries
-            return jobs.map((job, i) => normalizeMatchResult(Array.isArray(parsed) ? parsed[i] || {} : {}, job, resume));
+            // Keep any entries that did come back; mark missing ones failed
+            return jobs.map((job, i) =>
+                Array.isArray(parsed) && parsed[i]
+                    ? normalizeMatchResult(parsed[i], job, resume)
+                    : { ...SCORING_FAILED_RESULT }
+            );
         }
 
         return parsed.map((r, i) => normalizeMatchResult(r, jobs[i], resume));
@@ -207,27 +233,20 @@ async function scoreBatchSingle(
         } else {
             console.error("[batch-score] Batch scoring error:", error);
         }
-        return jobs.map(() => ({
-            score: 50,
-            reasoning: "Could not generate match score \u2014 defaulted to 50.",
-        }));
+        return jobs.map(() => ({ ...SCORING_FAILED_RESULT }));
     }
 }
 
 /**
- * Score multiple jobs against resume data using batched Gemini calls.
- * Splits jobs into chunks of BATCH_SIZE and scores each chunk in one API call.
- *
- * API impact: With BATCH_SIZE=5, scoring 30 jobs uses 6 API calls instead of 30.
+ * One scoring pass: single job via scoreJobMatch, otherwise chunks of
+ * BATCH_SIZE via scoreBatchSingle with a delay between chunks.
  */
-export async function scoreJobBatch(
+async function scorePass(
     jobs: JobInput[],
     resume: ParsedResumeData,
-    targetSeniority: string = "any",
+    targetSeniority: string,
     logger?: PipelineLogger
 ): Promise<MatchResult[]> {
-    if (jobs.length === 0) return [];
-
     // Single job doesn't need batching
     if (jobs.length === 1) {
         const result = await scoreJobMatch(jobs[0], resume, targetSeniority, logger);
@@ -253,6 +272,59 @@ export async function scoreJobBatch(
         if (i + BATCH_SIZE < jobs.length) {
             await new Promise((resolve) => setTimeout(resolve, 1000));
         }
+    }
+
+    return allResults;
+}
+
+/**
+ * Score multiple jobs against resume data using batched Gemini calls.
+ * Splits jobs into chunks of BATCH_SIZE and scores each chunk in one API call.
+ * Failed results get exactly one retry round after a short delay.
+ *
+ * API impact: With BATCH_SIZE=5, scoring 30 jobs uses 6 API calls instead of 30.
+ */
+export async function scoreJobBatch(
+    jobs: JobInput[],
+    resume: ParsedResumeData,
+    targetSeniority: string = "any",
+    logger?: PipelineLogger
+): Promise<MatchResult[]> {
+    if (jobs.length === 0) return [];
+
+    const allResults = await scorePass(jobs, resume, targetSeniority, logger);
+
+    const failedIndices = allResults
+        .map((r, i) => (r.failed ? i : -1))
+        .filter((i) => i >= 0);
+
+    if (failedIndices.length === 0) return allResults;
+
+    const retryMsg = `Retrying ${failedIndices.length} failed job(s) once`;
+    if (logger) {
+        logger.info("scoring", retryMsg);
+    } else {
+        console.log(`[batch-score] ${retryMsg}`);
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+
+    const failedJobs = failedIndices.map((i) => jobs[i]);
+    const retryResults = await scorePass(failedJobs, resume, targetSeniority, logger);
+
+    let recovered = 0;
+    retryResults.forEach((result, k) => {
+        if (!result.failed) {
+            allResults[failedIndices[k]] = result;
+            recovered++;
+        }
+    });
+
+    const recoveredMsg = `Retry recovered ${recovered} of ${failedIndices.length} job(s)`;
+    if (logger) {
+        logger.info("scoring", recoveredMsg);
+    } else {
+        console.log(`[batch-score] ${recoveredMsg}`);
     }
 
     return allResults;
