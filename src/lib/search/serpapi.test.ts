@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { normalizeJob, type SerpApiJob } from "./serpapi";
+import { getListingAgePhrase, normalizeJob, type SerpApiJob } from "./serpapi";
 import type { PipelineLogger } from "@/lib/pipeline-logger";
 
 // ---------------------------------------------------------------------------
@@ -139,6 +139,34 @@ describe("normalizeJob", () => {
         const result = normalizeJob(makeJob({ detected_extensions: { posted_at: "Full-time" } }), "r1");
         expect(result.posted_at).toBeNull();
     });
+
+    it("parses metadata from the extensions array when detected_extensions is absent", () => {
+        const job = makeJob({
+            detected_extensions: undefined,
+            extensions: ["6 days ago", "80K\u201395K a year", "Work from home"],
+        });
+        const result = normalizeJob(job, "r1");
+
+        expect(result.posted_at).not.toBeNull();
+        const ageMs = Date.now() - new Date(result.posted_at!).getTime();
+        expect(ageMs).toBeGreaterThanOrEqual(6 * 24 * 60 * 60 * 1000 - 1000);
+        expect(ageMs).toBeLessThan(7 * 24 * 60 * 60 * 1000);
+        expect(result.salary_info).toBe("80K\u201395K a year");
+        expect(result.is_remote).toBe(true);
+    });
+
+    it("prefers detected_extensions over the extensions array", () => {
+        const job = makeJob({
+            detected_extensions: { posted_at: "1 day ago", salary: "$200K a year" },
+            extensions: ["6 days ago", "80K\u201395K a year", "Work from home"],
+        });
+        const result = normalizeJob(job, "r1");
+
+        const ageMs = Date.now() - new Date(result.posted_at!).getTime();
+        expect(ageMs).toBeLessThan(2 * 24 * 60 * 60 * 1000);
+        expect(result.salary_info).toBe("$200K a year");
+        expect(result.is_remote).toBe(true);
+    });
 });
 
 // ---------------------------------------------------------------------------
@@ -193,123 +221,10 @@ describe("searchJobs", () => {
             target_seniority: "any",
         });
 
-        expect(result).toEqual(mockJobs);
+        expect(result.jobs).toEqual(mockJobs);
     });
 
-    it("applies listing age with the returned Date posted uds filter", async () => {
-        const mockJobs = [makeJob()];
-        const fetchMock = vi.fn()
-            .mockResolvedValueOnce({
-                ok: true,
-                json: () => Promise.resolve({
-                    filters: [
-                        {
-                            name: "Date posted",
-                            options: [
-                                {
-                                    name: "Last 3 days",
-                                    q: "Engineer in the last 3 days",
-                                    uds: "uds-3-days",
-                                },
-                                {
-                                    name: "Last week",
-                                    q: "Engineer in the last week",
-                                    uds: "uds-last-week",
-                                },
-                            ],
-                        },
-                    ],
-                }),
-            })
-            .mockResolvedValueOnce({
-                ok: true,
-                json: () => Promise.resolve({ jobs_results: mockJobs }),
-            });
-        vi.stubGlobal("fetch", fetchMock);
-
-        const { searchJobs } = await import("./serpapi");
-        const logger = {
-            info: vi.fn(),
-        } as unknown as PipelineLogger;
-        const result = await searchJobs("Engineer", {
-            id: "f1",
-            user_id: "u1",
-            keywords: [],
-            location: null,
-            remote_preference: "any",
-            min_salary: null,
-            max_listing_age_days: 7,
-            excluded_companies: [],
-            target_seniority: "any",
-        }, logger);
-
-        const filteredUrl = new URL(fetchMock.mock.calls[1][0]);
-        expect(result).toEqual(mockJobs);
-        expect(fetchMock).toHaveBeenCalledTimes(2);
-        expect(filteredUrl.searchParams.get("q")).toBe("Engineer in the last week");
-        expect(filteredUrl.searchParams.get("uds")).toBe("uds-last-week");
-        expect(filteredUrl.searchParams.get("chips")).toBeNull();
-        expect(logger.info).toHaveBeenCalledWith(
-            "serpapi",
-            "Applying listing age filter \"Last week\" for \"Engineer\""
-        );
-    });
-
-    it("does not paginate filtered searches to stay within the SerpAPI budget", async () => {
-        const freshJob = makeJob({
-            title: "Fresh Engineer",
-            detected_extensions: { posted_at: "2 days ago" },
-        });
-        const fetchMock = vi.fn()
-            .mockResolvedValueOnce({
-                ok: true,
-                json: () => Promise.resolve({
-                    filters: [
-                        {
-                            name: "Date posted",
-                            options: [
-                                {
-                                    name: "Last week",
-                                    q: "Engineer in the last week",
-                                    uds: "uds-last-week",
-                                },
-                            ],
-                        },
-                    ],
-                }),
-            })
-            .mockResolvedValue({
-                ok: true,
-                json: () => Promise.resolve({
-                    jobs_results: [freshJob],
-                    serpapi_pagination: {
-                        next_page_token: "next-page",
-                    },
-                }),
-            });
-        vi.stubGlobal("fetch", fetchMock);
-
-        const { searchJobs } = await import("./serpapi");
-        const logger = {
-            info: vi.fn(),
-        } as unknown as PipelineLogger;
-        const result = await searchJobs("Engineer", {
-            id: "f1",
-            user_id: "u1",
-            keywords: [],
-            location: null,
-            remote_preference: "any",
-            min_salary: null,
-            max_listing_age_days: 7,
-            excluded_companies: [],
-            target_seniority: "any",
-        }, logger);
-
-        expect(result).toEqual([freshJob]);
-        expect(fetchMock).toHaveBeenCalledTimes(2);
-    });
-
-    it("uses the discovery results when Date posted filter is unavailable", async () => {
+    it("appends the listing age phrase to the query and makes exactly one call", async () => {
         const mockJobs = [makeJob()];
         const fetchMock = vi.fn().mockResolvedValue({
             ok: true,
@@ -318,9 +233,6 @@ describe("searchJobs", () => {
         vi.stubGlobal("fetch", fetchMock);
 
         const { searchJobs } = await import("./serpapi");
-        const logger = {
-            warn: vi.fn(),
-        } as unknown as PipelineLogger;
         const result = await searchJobs("Engineer", {
             id: "f1",
             user_id: "u1",
@@ -331,14 +243,169 @@ describe("searchJobs", () => {
             max_listing_age_days: 7,
             excluded_companies: [],
             target_seniority: "any",
-        }, logger);
+        });
 
-        expect(result).toEqual(mockJobs);
+        expect(result.jobs).toEqual(mockJobs);
         expect(fetchMock).toHaveBeenCalledTimes(1);
-        expect(logger.warn).toHaveBeenCalledWith(
-            "serpapi",
-            "SerpAPI did not return a Date posted filter for \"Engineer\"; continuing without listing age filtering"
-        );
+        const url = new URL(fetchMock.mock.calls[0][0]);
+        expect(url.searchParams.get("q")).toBe("Engineer in the last week");
+        expect(url.searchParams.get("uds")).toBeNull();
+        expect(url.searchParams.get("chips")).toBeNull();
+    });
+
+    it("searches the plain query when max_listing_age_days is 0", async () => {
+        const mockJobs = [makeJob()];
+        const fetchMock = vi.fn().mockResolvedValue({
+            ok: true,
+            json: () => Promise.resolve({ jobs_results: mockJobs }),
+        });
+        vi.stubGlobal("fetch", fetchMock);
+
+        const { searchJobs } = await import("./serpapi");
+        const result = await searchJobs("Engineer", {
+            id: "f1",
+            user_id: "u1",
+            keywords: [],
+            location: null,
+            remote_preference: "any",
+            min_salary: null,
+            max_listing_age_days: 0,
+            excluded_companies: [],
+            target_seniority: "any",
+        });
+
+        expect(result.jobs).toEqual(mockJobs);
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+        const url = new URL(fetchMock.mock.calls[0][0]);
+        expect(url.searchParams.get("q")).toBe("Engineer");
+    });
+
+    it("uses the broadest phrase for ages over 30 days and still filters client-side", async () => {
+        const oldJob = makeJob({
+            title: "Old Job",
+            detected_extensions: undefined,
+            extensions: ["20 days ago", "Full-time"],
+        });
+        const freshJob = makeJob({
+            title: "Fresh Job",
+            detected_extensions: undefined,
+            extensions: ["5 days ago", "Full-time"],
+        });
+        const fetchMock = vi.fn().mockResolvedValue({
+            ok: true,
+            json: () => Promise.resolve({ jobs_results: [oldJob, freshJob] }),
+        });
+        vi.stubGlobal("fetch", fetchMock);
+
+        const { searchJobs } = await import("./serpapi");
+        const result = await searchJobs("Engineer", {
+            id: "f1",
+            user_id: "u1",
+            keywords: [],
+            location: null,
+            remote_preference: "any",
+            min_salary: null,
+            max_listing_age_days: 14,
+            excluded_companies: [],
+            target_seniority: "any",
+        });
+
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+        const url = new URL(fetchMock.mock.calls[0][0]);
+        expect(url.searchParams.get("q")).toBe("Engineer in the last month");
+        // The 20-day-old job is dropped by the client-side safety net
+        expect(result.jobs).toEqual([freshJob]);
+    });
+
+    it("makes one call per invocation and returns the next page token", async () => {
+        const freshJob = makeJob({
+            title: "Fresh Engineer",
+            detected_extensions: { posted_at: "2 days ago" },
+        });
+        const fetchMock = vi.fn().mockResolvedValue({
+            ok: true,
+            json: () => Promise.resolve({
+                jobs_results: [freshJob],
+                serpapi_pagination: {
+                    next_page_token: "next-page",
+                },
+            }),
+        });
+        vi.stubGlobal("fetch", fetchMock);
+
+        const { searchJobs } = await import("./serpapi");
+        const result = await searchJobs("Engineer", {
+            id: "f1",
+            user_id: "u1",
+            keywords: [],
+            location: null,
+            remote_preference: "any",
+            min_salary: null,
+            max_listing_age_days: 7,
+            excluded_companies: [],
+            target_seniority: "any",
+        });
+
+        expect(result.jobs).toEqual([freshJob]);
+        expect(result.nextPageToken).toBe("next-page");
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+
+    it("passes the page token and keeps the listing age phrase on later pages", async () => {
+        const page2Job = makeJob({ title: "Page 2 Engineer" });
+        const fetchMock = vi.fn().mockResolvedValue({
+            ok: true,
+            json: () => Promise.resolve({ jobs_results: [page2Job] }),
+        });
+        vi.stubGlobal("fetch", fetchMock);
+
+        const { searchJobs } = await import("./serpapi");
+        const result = await searchJobs("Engineer", {
+            id: "f1",
+            user_id: "u1",
+            keywords: [],
+            location: null,
+            remote_preference: "any",
+            min_salary: null,
+            max_listing_age_days: 7,
+            excluded_companies: [],
+            target_seniority: "any",
+        }, undefined, "next-page");
+
+        expect(result.jobs).toEqual([page2Job]);
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+        const url = new URL(fetchMock.mock.calls[0][0]);
+        expect(url.searchParams.get("next_page_token")).toBe("next-page");
+        expect(url.searchParams.get("q")).toBe("Engineer in the last week");
+    });
+
+    it("returns no next page token when the page has no results", async () => {
+        const fetchMock = vi.fn().mockResolvedValue({
+            ok: true,
+            json: () => Promise.resolve({
+                jobs_results: [],
+                serpapi_pagination: {
+                    next_page_token: "next-page",
+                },
+            }),
+        });
+        vi.stubGlobal("fetch", fetchMock);
+
+        const { searchJobs } = await import("./serpapi");
+        const result = await searchJobs("Engineer", {
+            id: "f1",
+            user_id: "u1",
+            keywords: [],
+            location: null,
+            remote_preference: "any",
+            min_salary: null,
+            max_listing_age_days: 7,
+            excluded_companies: [],
+            target_seniority: "any",
+        });
+
+        expect(result.jobs).toEqual([]);
+        expect(result.nextPageToken).toBeUndefined();
     });
 
     it("returns empty array when no jobs_results", async () => {
@@ -363,7 +430,7 @@ describe("searchJobs", () => {
             target_seniority: "any",
         });
 
-        expect(result).toEqual([]);
+        expect(result.jobs).toEqual([]);
     });
 
     it("throws on HTTP error", async () => {
@@ -430,6 +497,7 @@ describe("searchJobs", () => {
 
         const { searchJobs } = await import("./serpapi");
         const logger = {
+            info: vi.fn(),
             warn: vi.fn(),
         } as unknown as PipelineLogger;
         const result = await searchJobs("Engineer", {
@@ -444,10 +512,68 @@ describe("searchJobs", () => {
             target_seniority: "any",
         }, logger);
 
-        expect(result).toEqual([]);
+        expect(result.jobs).toEqual([]);
+        expect(result.nextPageToken).toBeUndefined();
         expect(logger.warn).toHaveBeenCalledWith(
             "serpapi",
-            "Google Jobs returned no results for \"Engineer\" on page 1: Google hasn't returned any results for this query."
+            "Google Jobs returned no results for \"Engineer in the last week\" on page 1: Google hasn't returned any results for this query."
         );
+    });
+
+    it("reports page 2 in the warning when a page token was passed", async () => {
+        vi.stubGlobal(
+            "fetch",
+            vi.fn().mockResolvedValue({
+                ok: true,
+                json: () => Promise.resolve({
+                    error: "Google hasn't returned any results for this query.",
+                }),
+            })
+        );
+
+        const { searchJobs } = await import("./serpapi");
+        const logger = {
+            info: vi.fn(),
+            warn: vi.fn(),
+        } as unknown as PipelineLogger;
+        const result = await searchJobs("Engineer", {
+            id: "f1",
+            user_id: "u1",
+            keywords: [],
+            location: null,
+            remote_preference: "any",
+            min_salary: null,
+            max_listing_age_days: 7,
+            excluded_companies: [],
+            target_seniority: "any",
+        }, logger, "next-page");
+
+        expect(result.jobs).toEqual([]);
+        expect(logger.warn).toHaveBeenCalledWith(
+            "serpapi",
+            "Google Jobs returned no results for \"Engineer in the last week\" on page 2: Google hasn't returned any results for this query."
+        );
+    });
+});
+
+// ---------------------------------------------------------------------------
+// getListingAgePhrase
+// ---------------------------------------------------------------------------
+
+describe("getListingAgePhrase", () => {
+    it.each([
+        [1, "since yesterday"],
+        [2, "in the last 3 days"],
+        [3, "in the last 3 days"],
+        [7, "in the last week"],
+        [30, "in the last month"],
+        [45, "in the last month"],
+    ])("maps %i day(s) to %s", (days, phrase) => {
+        expect(getListingAgePhrase(days)).toBe(phrase);
+    });
+
+    it("returns null when listing age filtering is disabled", () => {
+        expect(getListingAgePhrase(0)).toBeNull();
+        expect(getListingAgePhrase(-5)).toBeNull();
     });
 });

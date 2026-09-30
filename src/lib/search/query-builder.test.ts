@@ -53,6 +53,28 @@ describe("buildSearchQueries", () => {
         });
         const result = buildSearchQueries(resume, makeFilters());
         expect(result).toHaveLength(4);
+        expect(result).toEqual(["A", "B", "C", "D"]);
+    });
+
+    it("rotates which titles are searched when there are more than 4", () => {
+        const resume = makeResume({
+            job_titles: ["A", "B", "C", "D", "E", "F"],
+        });
+        const filters = makeFilters();
+
+        expect(buildSearchQueries(resume, filters, 0)).toEqual(["A", "B", "C", "D"]);
+        expect(buildSearchQueries(resume, filters, 1)).toEqual(["E", "F", "A", "B"]);
+        expect(buildSearchQueries(resume, filters, 2)).toEqual(["C", "D", "E", "F"]);
+    });
+
+    it("ignores rotation when there are 4 or fewer titles", () => {
+        const resume = makeResume({
+            job_titles: ["A", "B", "C"],
+        });
+        const filters = makeFilters();
+
+        expect(buildSearchQueries(resume, filters, 0)).toEqual(["A", "B", "C"]);
+        expect(buildSearchQueries(resume, filters, 1)).toEqual(["A", "B", "C"]);
     });
 
     it("falls back to individual skill queries when no job titles exist", () => {

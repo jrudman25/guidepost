@@ -231,7 +231,7 @@ export function ResumeCard({ resume, onUpdate }: ResumeCardProps) {
                                 )}
                             </div>
                             <p className="text-xs text-muted-foreground">
-                                Only the first 4 titles are used in searches.
+                                Up to 4 titles are searched per day, rotating through the list.
                             </p>
                             {editingTitles ? (
                                 <div className="space-y-2">

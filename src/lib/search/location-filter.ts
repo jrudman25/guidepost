@@ -1,4 +1,5 @@
 import type { SerpApiJob } from "./serpapi";
+import { getJobExtensions } from "./job-extensions";
 
 /**
  * Keywords that indicate a job is remote, checked against title and description.
@@ -65,7 +66,7 @@ export function detectRemote(job: SerpApiJob): boolean {
     }
 
     // Trust SerpAPI flag first
-    if (job.detected_extensions?.work_from_home) {
+    if (getJobExtensions(job).work_from_home) {
         return true;
     }
 
