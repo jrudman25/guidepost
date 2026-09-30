@@ -12,7 +12,8 @@ export async function GET(request: Request) {
         const status = searchParams.get("status");
         const rawLimit = parseInt(searchParams.get("limit") || "20");
         const limit = Number.isFinite(rawLimit) ? Math.min(Math.max(rawLimit, 1), 100) : 20;
-        const offset = parseInt(searchParams.get("offset") || "0");
+        const rawOffset = parseInt(searchParams.get("offset") || "0");
+        const offset = Number.isFinite(rawOffset) && rawOffset > 0 ? rawOffset : 0;
         const sort = searchParams.get("sort") || "applied";
 
         let query = supabase
@@ -74,10 +75,42 @@ export async function POST(request: Request) {
             );
         }
 
+        if (body.job_listing_id != null) {
+            if (typeof body.job_listing_id !== "string") {
+                return NextResponse.json(
+                    { error: "job_listing_id must be a string" },
+                    { status: 400 }
+                );
+            }
+
+            const { data: listing } = await supabase
+                .from("job_listings")
+                .select("id")
+                .eq("id", body.job_listing_id)
+                .maybeSingle();
+            if (!listing) {
+                return NextResponse.json(
+                    { error: "job_listing_id not found" },
+                    { status: 400 }
+                );
+            }
+
+            const { data: existing } = await supabase
+                .from("applications")
+                .select("*")
+                .eq("job_listing_id", body.job_listing_id)
+                .limit(1);
+            if (existing && existing.length > 0) {
+                return NextResponse.json({ application: existing[0] }, { status: 200 });
+            }
+        }
+
         // Validate dates
         const appliedAt = body.applied_at || new Date().toISOString().split("T")[0];
-        const today = new Date().toISOString().split("T")[0];
-        if (appliedAt > today) {
+        // applied_at is the user's local date. Timezones go up to UTC+14, so a
+        // legitimate "today" can be at most one day ahead of the UTC date.
+        const maxDate = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+        if (appliedAt > maxDate) {
             return NextResponse.json(
                 { error: "Applied date cannot be in the future" },
                 { status: 400 }

@@ -14,7 +14,8 @@ export async function GET(request: Request) {
         const status = searchParams.get("status");
         const rawLimit = parseInt(searchParams.get("limit") || "50");
         const limit = Number.isFinite(rawLimit) ? Math.min(Math.max(rawLimit, 1), 100) : 50;
-        const offset = parseInt(searchParams.get("offset") || "0");
+        const rawOffset = parseInt(searchParams.get("offset") || "0");
+        const offset = Number.isFinite(rawOffset) && rawOffset > 0 ? rawOffset : 0;
         const sort = searchParams.get("sort") || "score";
         const scoreBand = searchParams.get("score_band");
 

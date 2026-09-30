@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { createClient } from "@/lib/supabase/client";
+import { DEMO_EMAIL } from "@/lib/demo-account";
 import { toast } from "sonner";
 
 export default function LoginPage() {
@@ -19,7 +20,7 @@ export default function LoginPage() {
         const supabase = createClient();
 
         const { error } = await supabase.auth.signInWithPassword({
-            email: "demo@guidepostai.app",
+            email: DEMO_EMAIL,
             password: "demo123",
         });
 

@@ -153,6 +153,8 @@ describe("responseRate", () => {
         const apps = [
             makeApp({ status: "interview" }),
             makeApp({ status: "offer" }),
+            makeApp({ status: "accepted" }),
+            makeApp({ status: "declined" }),
         ];
 
         const result = computeStats(apps, NOW);
@@ -171,6 +173,8 @@ describe("statusBreakdown", () => {
             makeApp({ status: "applied" }),
             makeApp({ status: "interview" }),
             makeApp({ status: "offer" }),
+            makeApp({ status: "accepted" }),
+            makeApp({ status: "declined" }),
             makeApp({ status: "rejected" }),
             makeApp({ status: "rejected" }),
             makeApp({ status: "ghosted" }),
@@ -182,6 +186,8 @@ describe("statusBreakdown", () => {
             screening: 0,
             interview: 1,
             offer: 1,
+            accepted: 1,
+            declined: 1,
             rejected: 2,
             ghosted: 1,
         });
@@ -194,6 +200,8 @@ describe("statusBreakdown", () => {
             screening: 0,
             interview: 0,
             offer: 0,
+            accepted: 0,
+            declined: 0,
             rejected: 0,
             ghosted: 0,
         });
@@ -319,6 +327,9 @@ describe("rejectionFunnel", () => {
             makeApp({ status: "screening", furthest_stage: "screening" }),
             makeApp({ status: "interview", furthest_stage: "interview" }),
             makeApp({ status: "offer", furthest_stage: "offer" }),
+            // accepted/declined are offer outcomes, not company rejections
+            makeApp({ status: "accepted", furthest_stage: "offer" }),
+            makeApp({ status: "declined", furthest_stage: "offer" }),
         ];
 
         const result = computeStats(apps, NOW);

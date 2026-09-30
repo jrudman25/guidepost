@@ -1,21 +1,33 @@
 import type { ParsedResumeData, SearchFilter } from "@/lib/types";
 
+export const MAX_QUERIES_PER_RESUME = 4;
+
 /**
  * Builds optimized search queries from resume data and filters.
  * Strategy: keep queries simple — just job title + seniority level.
  * Google Jobs returns better results with focused queries.
  * Skill matching is handled post-search by the AI matcher.
- * 
+ *
  * Target: ~4 queries per resume to stay within SerpAPI free tier.
+ * When a resume has more than 4 titles, `rotation` selects which window of
+ * 4 is searched so different titles are covered on different days.
  */
 export function buildSearchQueries(
     parsed: ParsedResumeData,
-    filters: SearchFilter
+    filters: SearchFilter,
+    rotation = 0
 ): string[] {
     const queries: string[] = [];
 
-    // Get unique job titles (max 4 queries)
-    const titles = parsed.job_titles.slice(0, 4);
+    // Get unique job titles (max 4 queries); when there are more titles than
+    // the daily cap, rotate which titles are searched.
+    const allTitles = parsed.job_titles;
+    const titles = allTitles.length <= MAX_QUERIES_PER_RESUME
+        ? allTitles.slice(0, MAX_QUERIES_PER_RESUME)
+        : Array.from(
+            { length: MAX_QUERIES_PER_RESUME },
+            (_, i) => allTitles[(rotation * MAX_QUERIES_PER_RESUME + i) % allTitles.length]
+        );
 
     if (titles.length === 0) {
         // Fallback: use top skills as individual queries

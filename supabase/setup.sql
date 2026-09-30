@@ -69,7 +69,7 @@ create table if not exists public.applications (
   company text not null,
   applied_at date default current_date not null,
   applied_via text,
-  status text default 'applied' check (status in ('applied', 'screening', 'interview', 'offer', 'rejected', 'ghosted')),
+  status text default 'applied' check (status in ('applied', 'screening', 'interview', 'offer', 'accepted', 'declined', 'rejected', 'ghosted')),
   status_updated_at timestamptz default now() not null,
   heard_back_at timestamptz default null,
   notes text,
@@ -104,6 +104,7 @@ set search_path = ''
 as $$
 declare
   stage_order constant text[] := array['applied', 'screening', 'interview', 'offer'];
+  new_stage text;
   new_stage_idx int;
   current_stage_idx int;
 begin
@@ -112,11 +113,13 @@ begin
     values (NEW.id, OLD.status, NEW.status, NEW.user_id);
     NEW.status_updated_at = now();
 
-    -- Auto-update furthest_stage if new status is a higher progression stage
-    new_stage_idx := array_position(stage_order, NEW.status);
+    -- Auto-update furthest_stage if new status is a higher progression stage;
+    -- accepted/declined are terminal outcomes of the offer stage
+    new_stage = case when NEW.status in ('accepted', 'declined') then 'offer' else NEW.status end;
+    new_stage_idx := array_position(stage_order, new_stage);
     current_stage_idx := array_position(stage_order, NEW.furthest_stage);
     if new_stage_idx is not null and (current_stage_idx is null or new_stage_idx > current_stage_idx) then
-      NEW.furthest_stage = NEW.status;
+      NEW.furthest_stage = new_stage;
     end if;
   end if;
   return NEW;

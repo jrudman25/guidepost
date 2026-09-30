@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 // ---------------------------------------------------------------------------
 // Mock the shared Gemini helper before importing matcher
@@ -36,6 +36,17 @@ const sampleJob = {
     description: "Build React apps with TypeScript. 2+ years experience required.",
 };
 
+// scoreJobBatch waits 1s before its retry round; fake timers keep tests fast
+async function scoreBatchFast(
+    jobs: Parameters<typeof scoreJobBatch>[0],
+    resume: ParsedResumeData
+) {
+    vi.useFakeTimers();
+    const promise = scoreJobBatch(jobs, resume);
+    await vi.advanceTimersByTimeAsync(10_000);
+    return promise;
+}
+
 // ---------------------------------------------------------------------------
 // scoreJobMatch
 // ---------------------------------------------------------------------------
@@ -43,6 +54,10 @@ const sampleJob = {
 describe("scoreJobMatch", () => {
     beforeEach(() => {
         vi.clearAllMocks();
+    });
+
+    afterEach(() => {
+        vi.useRealTimers();
     });
 
     it("parses a valid Gemini response", async () => {
@@ -133,12 +148,23 @@ describe("scoreJobMatch", () => {
         expect(result.reasoning).not.toContain("Job 1");
     });
 
-    it("returns default score of 50 on Gemini failure", async () => {
+    it("marks the result failed on Gemini failure", async () => {
         mockGenerate.mockRejectedValue(new Error("API quota exceeded"));
 
         const result = await scoreJobMatch(sampleJob, makeResume());
-        expect(result.score).toBe(50);
-        expect(result.reasoning).toContain("Could not generate");
+        expect(result.score).toBe(0);
+        expect(result.failed).toBe(true);
+        expect(result.reasoning).toBe("Could not generate match score.");
+    });
+
+    it("marks the result failed when the score is not a number", async () => {
+        mockGenerate.mockResolvedValue(
+            { text: JSON.stringify({ score: "high", reasoning: "Looks good." }), model: "test-model" }
+        );
+
+        const result = await scoreJobMatch(sampleJob, makeResume());
+        expect(result.score).toBe(0);
+        expect(result.failed).toBe(true);
     });
 
     it("passes seniority to prompt", async () => {
@@ -161,7 +187,7 @@ describe("scoreJobMatch", () => {
         expect(prompt).toContain("Any level");
     });
 
-    it("truncates long descriptions to 2000 chars", async () => {
+    it("truncates long descriptions to 4000 chars", async () => {
         mockGenerate.mockResolvedValue(
             { text: JSON.stringify({ score: 50, reasoning: "OK." }), model: "test-model" }
         );
@@ -173,8 +199,18 @@ describe("scoreJobMatch", () => {
 
         await scoreJobMatch(longJob, makeResume());
         const prompt = mockGenerate.mock.calls[0][0] as string;
-        expect(prompt).toContain("x".repeat(2000));
-        expect(prompt).not.toContain("x".repeat(2001));
+        expect(prompt).toContain("x".repeat(4000));
+        expect(prompt).not.toContain("x".repeat(4001));
+    });
+
+    it("requests JSON mode with an object schema", async () => {
+        mockGenerate.mockResolvedValue(
+            { text: JSON.stringify({ score: 80, reasoning: "Good." }), model: "test-model" }
+        );
+
+        await scoreJobMatch(sampleJob, makeResume());
+        const options = mockGenerate.mock.calls[0][2] as { responseJsonSchema?: { type?: string } };
+        expect(options.responseJsonSchema?.type).toBe("object");
     });
 });
 
@@ -185,6 +221,10 @@ describe("scoreJobMatch", () => {
 describe("scoreJobBatch", () => {
     beforeEach(() => {
         vi.clearAllMocks();
+    });
+
+    afterEach(() => {
+        vi.useRealTimers();
     });
 
     it("returns empty array for empty input", async () => {
@@ -202,6 +242,26 @@ describe("scoreJobBatch", () => {
         expect(results).toHaveLength(1);
         expect(results[0].score).toBe(85);
         expect(mockGenerate).toHaveBeenCalledTimes(1);
+    });
+
+    it("requests JSON mode with an array schema", async () => {
+        mockGenerate.mockResolvedValue(
+            {
+                text: JSON.stringify([
+                    { score: 90, reasoning: "Excellent match." },
+                    { score: 60, reasoning: "Partial match." },
+                ]), model: "test-model"
+            }
+        );
+
+        const jobs = [
+            { title: "A", company: "X", description: "desc" },
+            { title: "B", company: "Y", description: "desc" },
+        ];
+
+        await scoreJobBatch(jobs, makeResume());
+        const options = mockGenerate.mock.calls[0][2] as { responseJsonSchema?: { type?: string } };
+        expect(options.responseJsonSchema?.type).toBe("array");
     });
 
     it("scores multiple jobs in a single batch API call", async () => {
@@ -227,7 +287,7 @@ describe("scoreJobBatch", () => {
         expect(mockGenerate).toHaveBeenCalledTimes(1);
     });
 
-    it("returns fallback scores on batch failure", async () => {
+    it("marks all results failed when the batch fails twice (exactly one retry)", async () => {
         mockGenerate.mockRejectedValue(new Error("API error"));
 
         const jobs = [
@@ -235,10 +295,147 @@ describe("scoreJobBatch", () => {
             { title: "B", company: "Y", description: "desc" },
         ];
 
-        const results = await scoreJobBatch(jobs, makeResume());
+        const results = await scoreBatchFast(jobs, makeResume());
         expect(results).toHaveLength(2);
-        expect(results[0].score).toBe(50);
-        expect(results[1].score).toBe(50);
+        expect(results[0].failed).toBe(true);
+        expect(results[0].score).toBe(0);
+        expect(results[1].failed).toBe(true);
+        expect(results[1].score).toBe(0);
+        // One initial batch call + one retry call
+        expect(mockGenerate).toHaveBeenCalledTimes(2);
+    });
+
+    it("recovers failed results when the retry succeeds", async () => {
+        mockGenerate
+            .mockResolvedValueOnce({ text: "{ not valid json", model: "test-model" })
+            .mockResolvedValueOnce({
+                text: JSON.stringify([
+                    { score: 81, reasoning: "Recovered." },
+                    { score: 72, reasoning: "Recovered." },
+                ]), model: "test-model"
+            });
+
+        const jobs = [
+            { title: "A", company: "X", description: "desc" },
+            { title: "B", company: "Y", description: "desc" },
+        ];
+
+        const results = await scoreBatchFast(jobs, makeResume());
+        expect(results[0].score).toBe(81);
+        expect(results[0].failed).toBeUndefined();
+        expect(results[1].score).toBe(72);
+        expect(results[1].failed).toBeUndefined();
+        expect(mockGenerate).toHaveBeenCalledTimes(2);
+    });
+
+    it("retries only the missing batch entry via the single-job path", async () => {
+        mockGenerate
+            .mockResolvedValueOnce({
+                text: JSON.stringify([
+                    { score: 88, reasoning: "Strong match." },
+                ]), model: "test-model"
+            })
+            .mockResolvedValueOnce({
+                text: JSON.stringify({ score: 91, reasoning: "Recovered." }),
+                model: "test-model",
+            });
+
+        const jobs = [
+            { title: "A", company: "X", description: "desc" },
+            { title: "B", company: "Y", description: "desc" },
+        ];
+
+        const results = await scoreBatchFast(jobs, makeResume());
+        expect(results).toHaveLength(2);
+        expect(results[0].score).toBe(88);
+        expect(results[0].failed).toBeUndefined();
+        expect(results[1].score).toBe(91);
+        expect(results[1].failed).toBeUndefined();
+        expect(mockGenerate).toHaveBeenCalledTimes(2);
+        // The retry used the single-job path (object schema, not array)
+        const retryOptions = mockGenerate.mock.calls[1][2] as { responseJsonSchema?: { type?: string } };
+        expect(retryOptions.responseJsonSchema?.type).toBe("object");
+        const retryPrompt = mockGenerate.mock.calls[1][0] as string;
+        expect(retryPrompt).toContain("Title: B");
+    });
+
+    it("retries a failed single-job score once", async () => {
+        mockGenerate
+            .mockRejectedValueOnce(new Error("API error"))
+            .mockResolvedValueOnce({
+                text: JSON.stringify({ score: 77, reasoning: "Recovered." }),
+                model: "test-model",
+            });
+
+        const results = await scoreBatchFast([sampleJob], makeResume());
+        expect(results).toHaveLength(1);
+        expect(results[0].score).toBe(77);
+        expect(results[0].failed).toBeUndefined();
+        expect(mockGenerate).toHaveBeenCalledTimes(2);
+    });
+
+    it("marks missing entries failed when Gemini returns the wrong count", async () => {
+        mockGenerate.mockResolvedValue(
+            {
+                text: JSON.stringify([
+                    { score: 88, reasoning: "Strong match." },
+                ]), model: "test-model"
+            }
+        );
+
+        const jobs = [
+            { title: "A", company: "X", description: "desc" },
+            { title: "B", company: "Y", description: "desc" },
+        ];
+
+        const results = await scoreBatchFast(jobs, makeResume());
+        expect(results).toHaveLength(2);
+        expect(results[0].score).toBe(88);
+        expect(results[0].failed).toBeUndefined();
+        expect(results[1].failed).toBe(true);
+        expect(results[1].score).toBe(0);
+    });
+
+    it("marks non-numeric scores failed", async () => {
+        mockGenerate.mockResolvedValue(
+            {
+                text: JSON.stringify([
+                    { score: "high", reasoning: "Good." },
+                    { score: 70, reasoning: "Solid." },
+                ]), model: "test-model"
+            }
+        );
+
+        const jobs = [
+            { title: "A", company: "X", description: "desc" },
+            { title: "B", company: "Y", description: "desc" },
+        ];
+
+        const results = await scoreBatchFast(jobs, makeResume());
+        expect(results[0].failed).toBe(true);
+        expect(results[0].score).toBe(0);
+        expect(results[1].score).toBe(70);
+    });
+
+    it("truncates long descriptions to 4000 chars", async () => {
+        mockGenerate.mockResolvedValue(
+            {
+                text: JSON.stringify([
+                    { score: 50, reasoning: "OK." },
+                    { score: 50, reasoning: "OK." },
+                ]), model: "test-model"
+            }
+        );
+
+        const jobs = [
+            { title: "A", company: "X", description: "x".repeat(5000) },
+            { title: "B", company: "Y", description: "desc" },
+        ];
+
+        await scoreJobBatch(jobs, makeResume());
+        const prompt = mockGenerate.mock.calls[0][0] as string;
+        expect(prompt).toContain("x".repeat(4000));
+        expect(prompt).not.toContain("x".repeat(4001));
     });
 });
 

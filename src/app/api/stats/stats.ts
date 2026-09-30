@@ -84,6 +84,8 @@ export function computeStats(
         screening: 0,
         interview: 0,
         offer: 0,
+        accepted: 0,
+        declined: 0,
         rejected: 0,
         ghosted: 0,
     };

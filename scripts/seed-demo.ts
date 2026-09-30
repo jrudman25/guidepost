@@ -1,5 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import * as dotenv from "dotenv";
+import { DEMO_EMAIL } from "../src/lib/demo-account";
 
 dotenv.config({ path: ".env.local" });
 
@@ -15,10 +16,10 @@ async function seed() {
 
     // Look up the demo user (created manually in Supabase Auth)
     const { data: userData, error: userErr } = await supabase.auth.admin.listUsers({ perPage: 1000 });
-    const demoUser = userData?.users.find((u) => u.email === "demo@guidepostai.app");
+    const demoUser = userData?.users.find((u) => u.email === DEMO_EMAIL);
 
     if (userErr || !demoUser) {
-        console.error("Demo user demo@guidepostai.app not found. Create it in Supabase Auth first.", userErr);
+        console.error(`Demo user ${DEMO_EMAIL} not found. Create it in Supabase Auth first.`, userErr);
         return;
     }
 
@@ -217,7 +218,10 @@ async function seed() {
         if (r > 0.7) status = "ghosted";
         if (r > 0.85) status = "screening";
         if (r > 0.93) status = "interview";
-        if (r > 0.98) status = "offer";
+        if (r > 0.96) {
+            const outcome = Math.random();
+            status = outcome < 0.4 ? "offer" : outcome < 0.8 ? "accepted" : "declined";
+        }
 
         let heardBackDate = null;
         if (status !== "applied" && status !== "ghosted") {
@@ -230,7 +234,7 @@ async function seed() {
         let furthestStage = "applied";
         if (status === "screening") furthestStage = "screening";
         else if (status === "interview") furthestStage = "interview";
-        else if (status === "offer") furthestStage = "offer";
+        else if (status === "offer" || status === "accepted" || status === "declined") furthestStage = "offer";
         else if (status === "rejected" || status === "ghosted") {
             // Randomize how far they got before rejection
             const fr = Math.random();

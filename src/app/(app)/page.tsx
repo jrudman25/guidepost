@@ -44,6 +44,8 @@ const STATUS_COLORS: Record<string, string> = {
     screening: "#f59e0b",
     interview: "#8b5cf6",
     offer: "#10b981",
+    accepted: "#22c55e",
+    declined: "#f97316",
     rejected: "#ef4444",
     ghosted: "#71717a",
 };
@@ -53,6 +55,8 @@ const STATUS_LABELS: Record<string, string> = {
     screening: "Screening",
     interview: "Interview",
     offer: "Offer",
+    accepted: "Accepted",
+    declined: "Declined",
     rejected: "Rejected",
     ghosted: "Ghosted",
 };

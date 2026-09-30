@@ -1,5 +1,6 @@
 import { buildSerpApiParams } from "./query-builder";
 import { detectRemote } from "./location-filter";
+import { getJobExtensions, parseSerpApiPostedAt } from "./job-extensions";
 import type { PipelineLogger } from "@/lib/pipeline-logger";
 import type { SearchFilter } from "@/lib/types";
 
@@ -14,8 +15,10 @@ export interface SerpApiJob {
         schedule_type?: string;
         work_from_home?: boolean;
     };
+    extensions?: string[];
     job_id?: string;
     share_link?: string;
+    via?: string;
     apply_options?: Array<{
         title: string;
         link: string;
@@ -25,108 +28,92 @@ export interface SerpApiJob {
 interface SerpApiResponse {
     jobs_results?: SerpApiJob[];
     error?: string;
-    filters?: SerpApiFilter[];
     serpapi_pagination?: {
         next_page_token?: string;
         next?: string;
     };
 }
 
-interface SerpApiFilter {
-    name: string;
-    options?: SerpApiFilterOption[];
-}
+/**
+ * Search for jobs using SerpAPI's Google Jobs engine.
+ * Fetches exactly one page per invocation (10 results); pass `pageToken`
+ * for subsequent pages of the same query.
+ *
+ * Every invocation costs exactly 1 SerpAPI call. When a listing age filter
+ * is set, the age phrase is appended to the query text (Google Jobs applies
+ * the date filter from the phrase alone); the client-side filter remains as
+ * a safety net for ages that fall between the available phrases.
+ */
+const LISTING_AGE_OPTIONS = [
+    { maxDays: 1, phrase: "since yesterday" },
+    { maxDays: 3, phrase: "in the last 3 days" },
+    { maxDays: 7, phrase: "in the last week" },
+    { maxDays: 30, phrase: "in the last month" },
+];
 
-interface SerpApiFilterOption {
-    name: string;
-    q?: string;
-    uds?: string;
+export interface SerpApiSearchResult {
+    jobs: SerpApiJob[];
+    nextPageToken?: string;
 }
 
 /**
- * Search for jobs using SerpAPI's Google Jobs engine.
- * Fetches up to MAX_PAGES pages (10 results each).
+ * Map a max listing age in days to the smallest Google Jobs date phrase that
+ * covers it (e.g. 14 days -> "in the last month"). Returns null when no
+ * listing age filter is requested.
  */
-const MAX_PAGES = 1;
-const LISTING_AGE_OPTIONS = [
-    { maxDays: 1, name: "Yesterday" },
-    { maxDays: 3, name: "Last 3 days" },
-    { maxDays: 7, name: "Last week" },
-    { maxDays: 30, name: "Last month" },
-];
+export function getListingAgePhrase(maxDays: number): string | null {
+    if (maxDays <= 0) return null;
+
+    const option = LISTING_AGE_OPTIONS.find((o) => o.maxDays >= maxDays)
+        || LISTING_AGE_OPTIONS[LISTING_AGE_OPTIONS.length - 1];
+    return option.phrase;
+}
 
 export async function searchJobs(
     query: string,
     filters: SearchFilter,
-    logger?: PipelineLogger
-): Promise<SerpApiJob[]> {
+    logger?: PipelineLogger,
+    pageToken?: string
+): Promise<SerpApiSearchResult> {
     const apiKey = process.env.SERPAPI_API_KEY;
     if (!apiKey) {
         throw new Error("SERPAPI_API_KEY is not configured");
     }
 
-    const allJobs: SerpApiJob[] = [];
-    let nextPageToken: string | undefined;
-    let searchQuery = query;
-    let uds: string | undefined;
-    let prefetchedFirstPage: SerpApiResponse | undefined;
+    const listingAgePhrase = getListingAgePhrase(filters.max_listing_age_days);
+    const searchQuery = listingAgePhrase ? `${query} ${listingAgePhrase}` : query;
 
-    if (filters.max_listing_age_days > 0) {
-        const discoveryParams = buildSerpApiParams(query, filters);
-        discoveryParams.api_key = apiKey;
-        const discoveryData = await fetchSerpApi(discoveryParams);
-
-        if (handleSerpApiError(discoveryData, query, 0, logger)) {
-            return [];
-        }
-
-        const listingAgeFilter = findListingAgeFilter(discoveryData, filters.max_listing_age_days);
-
-        if (listingAgeFilter?.q && listingAgeFilter.uds) {
-            searchQuery = listingAgeFilter.q;
-            uds = listingAgeFilter.uds;
-            logger?.info("serpapi", `Applying listing age filter "${listingAgeFilter.name}" for "${query}"`);
-        } else {
-            prefetchedFirstPage = discoveryData;
-            logger?.warn("serpapi", `SerpAPI did not return a Date posted filter for "${query}"; continuing without listing age filtering`);
-        }
+    if (listingAgePhrase && !pageToken) {
+        logger?.info("serpapi", `Applying listing age phrase "${listingAgePhrase}" for "${query}"`);
     }
 
-    for (let page = 0; page < MAX_PAGES; page++) {
-        const params = buildSerpApiParams(searchQuery, filters);
-        params.api_key = apiKey;
+    const params = buildSerpApiParams(searchQuery, filters);
+    params.api_key = apiKey;
 
-        if (uds) {
-            params.uds = uds;
-        }
-
-        if (nextPageToken) {
-            params.next_page_token = nextPageToken;
-        }
-
-        const data = page === 0 && prefetchedFirstPage
-            ? prefetchedFirstPage
-            : await fetchSerpApi(params);
-
-        if (handleSerpApiError(data, searchQuery, page, logger)) {
-            break;
-        }
-
-        const rawJobs = data.jobs_results || [];
-        const jobs = filterJobsByListingAge(
-            rawJobs,
-            filters.max_listing_age_days,
-            logger,
-            searchQuery
-        );
-        allJobs.push(...jobs);
-
-        // Stop if no more pages
-        nextPageToken = data.serpapi_pagination?.next_page_token;
-        if (!nextPageToken || rawJobs.length === 0) break;
+    if (pageToken) {
+        params.next_page_token = pageToken;
     }
 
-    return allJobs;
+    const data = await fetchSerpApi(params);
+
+    if (handleSerpApiError(data, searchQuery, pageToken ? 1 : 0, logger)) {
+        return { jobs: [] };
+    }
+
+    const rawJobs = data.jobs_results || [];
+    const jobs = filterJobsByListingAge(
+        rawJobs,
+        filters.max_listing_age_days,
+        logger,
+        searchQuery
+    );
+
+    // No point paginating an empty page
+    const nextPageToken = rawJobs.length > 0
+        ? data.serpapi_pagination?.next_page_token
+        : undefined;
+
+    return { jobs, nextPageToken };
 }
 
 async function fetchSerpApi(params: Record<string, string>): Promise<SerpApiResponse> {
@@ -161,19 +148,6 @@ function handleSerpApiError(
     throw new Error(`SerpAPI error: ${data.error}`);
 }
 
-function findListingAgeFilter(
-    data: SerpApiResponse,
-    maxListingAgeDays: number
-): SerpApiFilterOption | null {
-    const target = LISTING_AGE_OPTIONS.find((option) => option.maxDays >= maxListingAgeDays)
-        || LISTING_AGE_OPTIONS[LISTING_AGE_OPTIONS.length - 1];
-    const datePostedFilter = data.filters?.find(
-        (filter) => filter.name.toLowerCase() === "date posted"
-    );
-
-    return datePostedFilter?.options?.find((option) => option.name === target.name) || null;
-}
-
 function filterJobsByListingAge(
     jobs: SerpApiJob[],
     maxListingAgeDays: number,
@@ -183,7 +157,7 @@ function filterJobsByListingAge(
     if (maxListingAgeDays <= 0) return jobs;
 
     const filtered = jobs.filter((job) => {
-        const postedAt = parseSerpApiPostedAt(job.detected_extensions?.posted_at);
+        const postedAt = parseSerpApiPostedAt(getJobExtensions(job).posted_at);
         if (!postedAt) return true;
 
         const ageMs = Date.now() - postedAt.getTime();
@@ -199,46 +173,9 @@ function filterJobsByListingAge(
     return filtered;
 }
 
-function parseSerpApiPostedAt(postedAt: string | undefined): Date | null {
-    if (!postedAt) return null;
-
-    const normalized = postedAt.trim().toLowerCase();
-    const now = Date.now();
-
-    if (
-        normalized === "today" ||
-        normalized === "just posted" ||
-        normalized === "recently" ||
-        normalized === "new"
-    ) {
-        return new Date(now);
-    }
-
-    if (normalized === "yesterday") {
-        return new Date(now - 24 * 60 * 60 * 1000);
-    }
-
-    const match = normalized.match(/^(\d+|\ba\b|an)\+?\s+(minute|minutes|hour|hours|day|days|week|weeks|month|months)\s+ago$/);
-    if (!match) return null;
-
-    const amount = match[1] === "a" || match[1] === "an"
-        ? 1
-        : Number(match[1]);
-    const unit = match[2];
-    const multipliers: Record<string, number> = {
-        minute: 60 * 1000,
-        minutes: 60 * 1000,
-        hour: 60 * 60 * 1000,
-        hours: 60 * 60 * 1000,
-        day: 24 * 60 * 60 * 1000,
-        days: 24 * 60 * 60 * 1000,
-        week: 7 * 24 * 60 * 60 * 1000,
-        weeks: 7 * 24 * 60 * 60 * 1000,
-        month: 30 * 24 * 60 * 60 * 1000,
-        months: 30 * 24 * 60 * 60 * 1000,
-    };
-
-    return new Date(now - amount * multipliers[unit]);
+function getJobSource(job: SerpApiJob): string {
+    const via = job.via?.replace(/^via\s+/i, "").trim();
+    return via || job.apply_options?.[0]?.title?.trim() || "google_jobs";
 }
 
 /**
@@ -261,6 +198,7 @@ export function normalizeJob(
 } {
     // Get the best apply link
     const applyLink = job.apply_options?.[0]?.link || job.share_link || null;
+    const ext = getJobExtensions(job);
 
     return {
         resume_id: resumeId,
@@ -269,9 +207,9 @@ export function normalizeJob(
         location: job.location || null,
         description: job.description || null,
         url: applyLink,
-        source: "google_jobs",
-        posted_at: parseSerpApiPostedAt(job.detected_extensions?.posted_at)?.toISOString() || null,
+        source: getJobSource(job),
+        posted_at: parseSerpApiPostedAt(ext.posted_at)?.toISOString() || null,
         is_remote: detectRemote(job),
-        salary_info: job.detected_extensions?.salary || null,
+        salary_info: ext.salary || null,
     };
 }

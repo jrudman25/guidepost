@@ -11,7 +11,7 @@ A full-stack job search management tool that automatically finds job listings ma
 2. **Configure search filters** - location, remote preference, seniority level, keywords, excluded companies, and listing age; filters are saved per user and apply to every active resume, so uploading a new resume keeps them
 3. **Auto-discover jobs** - a daily cron job queries Google Jobs via SerpAPI, deduplicates results, and filters by your preferences
 4. **AI match scoring** - jobs are scored 0–100 in batches against your resume with written explanations; low matches are separated and very low matches are auto-dismissed
-5. **Track applications** - move jobs through a pipeline (applied → screening → interview → offer / rejected / ghosted) with "furthest stage reached" tracking for granular rejection analytics
+5. **Track applications** - move jobs through a pipeline (applied → screening → interview → offer → accepted / declined / rejected / ghosted) with "furthest stage reached" tracking for granular rejection analytics
 6. **Search, sort & filter** - debounced search bars and sort dropdowns (by score, date, title, company) on both the job inbox and applications pages, combined with tab/status filters and paginated results
 7. **Saved job reminders** - amber badge on the sidebar shows saved count, and saved job cards display color-coded aging indicators (green ≤3 days, amber 4–7 days, red >7 days)
 8. **Dashboard analytics** - response rate, average time to hear back, weekly volume, status breakdown, rejection funnel by pipeline stage, and a skills profile
@@ -79,7 +79,7 @@ src/
 - **Shared search executor** - the cron job and the "Search Now" button both call `executeJobSearch` directly, avoiding HTTP round-trips and auth issues
 - **Row Level Security** - Supabase RLS policies enforce per-user data isolation at the database level; the demo account's data is completely separate
 - **Structured pipeline logging** - search runs produce categorized markdown logs (SerpAPI results, filtering summaries, score distributions, errors) persisted to Supabase Storage with 14-day retention
-- **SerpAPI compatibility** - Google Jobs listing-age filtering uses dynamic `uds` filters returned by SerpAPI instead of deprecated `chips` filters, then discards results whose parsed posting age exceeds the configured limit
+- **SerpAPI compatibility** - Google Jobs listing-age filtering appends Google's date phrase (e.g. "in the last week") to each query, so every query costs a single SerpAPI call, then discards results whose parsed posting age exceeds the configured limit
 - **SerpAPI quota control** - daily search uses one Google Jobs page per query and an 8-call per-run budget, keeping the expected daily cron usage under the 250-call monthly SerpAPI quota
 - **Database-level status tracking** - a PostgreSQL `BEFORE UPDATE` trigger logs every application status change to `status_history`, updates `status_updated_at`, and auto-advances `furthest_stage` (the highest pipeline stage reached, used for rejection funnel analytics)
 - **Batched deduplication** - URL-based dedup uses a single `IN` query per search instead of per-job queries, with a `Set` for O(1) cross-query tracking

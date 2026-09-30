@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { computeStats, type StatsApplication } from "./stats";
+import { DEMO_EMAIL } from "@/lib/demo-account";
 
 /**
  * GET /api/stats
@@ -21,7 +22,7 @@ export async function GET() {
 
         const today = new Date();
 
-        if (user?.email === "demo@guidepostai.app" && apps.length > 0) {
+        if (user?.email === DEMO_EMAIL && apps.length > 0) {
             const maxDate = new Date(Math.max(...apps.map(a => new Date(a.applied_at).getTime())));
             // Move dates forward so the most recent application lands safely inside today's bucket (-1 hour)
             const offsetMs = today.getTime() - maxDate.getTime() - (60 * 60 * 1000);
@@ -44,7 +45,7 @@ export async function GET() {
 
         // Compute pure stats from application data
         // Pass `today` if we are shifting dates, so we synchronously measure relative to the same millisecond 
-        const stats = computeStats(apps, user?.email === "demo@guidepostai.app" ? today : undefined);
+        const stats = computeStats(apps, user?.email === DEMO_EMAIL ? today : undefined);
 
         // Active resumes count
         const { count: activeResumes } = await supabase
@@ -82,7 +83,7 @@ export async function GET() {
             .select("*", { count: "exact", head: true })
             .gte("discovered_at", oneWeekAgo.toISOString());
 
-        const isDemo = user?.email === "demo@guidepostai.app";
+        const isDemo = user?.email === DEMO_EMAIL;
         const userName = isDemo
             ? "Guest"
             : (user?.user_metadata?.full_name as string | undefined)

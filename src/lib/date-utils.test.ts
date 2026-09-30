@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { parseLocalDate, daysSince, toLocalDateString } from "./date-utils";
+import { parseLocalDate, daysSince, toLocalDateString, localDateString } from "./date-utils";
 
 // ---------------------------------------------------------------------------
 // parseLocalDate
@@ -44,6 +44,30 @@ describe("parseLocalDate", () => {
         const d = parseLocalDate("2026-07-04T12:00:00-07:00");
         // Should parse as 19:00 UTC
         expect(d.getUTCHours()).toBe(19);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// localDateString
+// ---------------------------------------------------------------------------
+
+describe("localDateString", () => {
+    it("formats using local date components, not UTC", () => {
+        // 11:15 PM local — toISOString() would already be the next UTC day
+        // in timezones behind UTC, which caused applied_at to be stored
+        // as tomorrow's date.
+        const d = new Date(2026, 8, 27, 23, 15, 0); // Sep 27, 2026
+        expect(localDateString(d)).toBe("2026-09-27");
+    });
+
+    it("zero-pads month and day", () => {
+        expect(localDateString(new Date(2026, 0, 5, 10, 0, 0))).toBe("2026-01-05");
+    });
+
+    it("defaults to the current local date", () => {
+        const now = new Date();
+        const expected = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+        expect(localDateString()).toBe(expected);
     });
 });
 
