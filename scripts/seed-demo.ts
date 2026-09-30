@@ -1,5 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import * as dotenv from "dotenv";
+import { DEMO_EMAIL } from "../src/lib/demo-account";
 
 dotenv.config({ path: ".env.local" });
 
@@ -15,10 +16,10 @@ async function seed() {
 
     // Look up the demo user (created manually in Supabase Auth)
     const { data: userData, error: userErr } = await supabase.auth.admin.listUsers({ perPage: 1000 });
-    const demoUser = userData?.users.find((u) => u.email === "demo@guidepostai.app");
+    const demoUser = userData?.users.find((u) => u.email === DEMO_EMAIL);
 
     if (userErr || !demoUser) {
-        console.error("Demo user demo@guidepostai.app not found. Create it in Supabase Auth first.", userErr);
+        console.error(`Demo user ${DEMO_EMAIL} not found. Create it in Supabase Auth first.`, userErr);
         return;
     }
 

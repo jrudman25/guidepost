@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
+import { DEMO_EMAIL } from "@/lib/demo-account";
 import { version } from '../../package.json';
 
 const navigation = [
@@ -32,7 +33,7 @@ export function AppSidebar() {
     const [unseenCount, setUnseenCount] = useState(0);
     const [savedCount, setSavedCount] = useState(0);
     const [userEmail, setUserEmail] = useState<string | null>(null);
-    const isDemoAccount = userEmail === "demo@guidepostai.app";
+    const isDemoAccount = userEmail === DEMO_EMAIL;
 
     const fetchCounts = useCallback(async () => {
         try {

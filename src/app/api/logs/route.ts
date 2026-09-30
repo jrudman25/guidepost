@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
+import { DEMO_EMAIL } from "@/lib/demo-account";
 
 const STORAGE_BUCKET = "pipeline-logs";
 
@@ -14,7 +15,7 @@ export async function GET() {
 
         // Only allow non-demo users to view pipeline logs
         const { data: { user } } = await supabase.auth.getUser();
-        if (user?.email === "demo@guidepostai.app") {
+        if (user?.email === DEMO_EMAIL) {
             return NextResponse.json({ error: "Not available" }, { status: 403 });
         }
 

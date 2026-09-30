@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { DEMO_EMAIL } from "@/lib/demo-account";
 
 export async function proxy(request: NextRequest) {
     let supabaseResponse = NextResponse.next({
@@ -54,7 +55,7 @@ export async function proxy(request: NextRequest) {
 
     // Protect API routes: Prevent demo account from mutating data
     if (
-        user?.email === "demo@guidepostai.app" &&
+        user?.email === DEMO_EMAIL &&
         request.nextUrl.pathname.startsWith("/api/") &&
         request.method !== "GET"
     ) {

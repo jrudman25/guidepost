@@ -3,6 +3,9 @@ import { executeJobSearch } from "@/lib/search/execute";
 import { createServiceClient } from "@/lib/supabase/service";
 import { PipelineLogger } from "@/lib/pipeline-logger";
 import { createBackup, pruneOldBackups } from "@/lib/db-backup";
+import { DEMO_EMAIL } from "@/lib/demo-account";
+
+export const maxDuration = 300;
 
 /**
  * GET /api/cron/daily-search
@@ -75,7 +78,7 @@ export async function GET(request: Request) {
         logger.info("setup", "Looking up demo account exclusion");
         let demoUserId: string | undefined;
         const { data: demoUsers } = await supabase.auth.admin.listUsers({ perPage: 1000 });
-        const demoUser = demoUsers?.users?.find((u) => u.email === "demo@guidepostai.app");
+        const demoUser = demoUsers?.users?.find((u) => u.email === DEMO_EMAIL);
         if (demoUser) {
             demoUserId = demoUser.id;
             logger.info("setup", "Demo account excluded from cron search");

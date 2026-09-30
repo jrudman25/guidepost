@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { executeJobSearch } from "@/lib/search/execute";
 import { createClient } from "@/lib/supabase/server";
 
+export const maxDuration = 300;
+
 /**
  * POST /api/jobs/search
  * Trigger a job search for a specific resume (or all active resumes).
