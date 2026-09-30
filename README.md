@@ -79,7 +79,7 @@ src/
 - **Shared search executor** - the cron job and the "Search Now" button both call `executeJobSearch` directly, avoiding HTTP round-trips and auth issues
 - **Row Level Security** - Supabase RLS policies enforce per-user data isolation at the database level; the demo account's data is completely separate
 - **Structured pipeline logging** - search runs produce categorized markdown logs (SerpAPI results, filtering summaries, score distributions, errors) persisted to Supabase Storage with 14-day retention
-- **SerpAPI compatibility** - Google Jobs listing-age filtering uses dynamic `uds` filters returned by SerpAPI instead of deprecated `chips` filters, then discards results whose parsed posting age exceeds the configured limit
+- **SerpAPI compatibility** - Google Jobs listing-age filtering appends Google's date phrase (e.g. "in the last week") to each query, so every query costs a single SerpAPI call, then discards results whose parsed posting age exceeds the configured limit
 - **SerpAPI quota control** - daily search uses one Google Jobs page per query and an 8-call per-run budget, keeping the expected daily cron usage under the 250-call monthly SerpAPI quota
 - **Database-level status tracking** - a PostgreSQL `BEFORE UPDATE` trigger logs every application status change to `status_history`, updates `status_updated_at`, and auto-advances `furthest_stage` (the highest pipeline stage reached, used for rejection funnel analytics)
 - **Batched deduplication** - URL-based dedup uses a single `IN` query per search instead of per-job queries, with a `Set` for O(1) cross-query tracking
