@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { cn, handleApiError, toastApiError } from "@/lib/utils";
 
+const MAX_FILE_SIZE = 4 * 1024 * 1024;
+
 interface ResumeUploadProps {
     onUploadComplete: () => void;
 }
@@ -14,6 +16,19 @@ export function ResumeUpload({ onUploadComplete }: ResumeUploadProps) {
     const [isDragging, setIsDragging] = useState(false);
     const [uploading, setUploading] = useState(false);
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
+
+    const selectFile = useCallback((file?: File) => {
+        if (!file) return;
+        if (file.type !== "application/pdf") {
+            toast.error("Please upload a PDF file");
+            return;
+        }
+        if (file.size > MAX_FILE_SIZE) {
+            toast.error("Resume PDFs must be 4 MB or smaller");
+            return;
+        }
+        setSelectedFile(file);
+    }, []);
 
     const handleDragOver = useCallback((e: React.DragEvent) => {
         e.preventDefault();
@@ -29,22 +44,14 @@ export function ResumeUpload({ onUploadComplete }: ResumeUploadProps) {
         e.preventDefault();
         setIsDragging(false);
 
-        const file = e.dataTransfer.files[0];
-        if (file && file.type === "application/pdf") {
-            setSelectedFile(file);
-        } else {
-            toast.error("Please upload a PDF file");
-        }
-    }, []);
+        selectFile(e.dataTransfer.files[0]);
+    }, [selectFile]);
 
     const handleFileSelect = useCallback(
         (e: React.ChangeEvent<HTMLInputElement>) => {
-            const file = e.target.files?.[0];
-            if (file) {
-                setSelectedFile(file);
-            }
+            selectFile(e.target.files?.[0]);
         },
-        []
+        [selectFile]
     );
 
     async function handleUpload() {
@@ -120,7 +127,7 @@ export function ResumeUpload({ onUploadComplete }: ResumeUploadProps) {
                                 Drop your resume here or click to browse
                             </p>
                             <p className="text-sm text-muted-foreground">
-                                PDF files only (max 10 MB)
+                                PDF files only (max 4 MB)
                             </p>
                         </div>
                         <input
