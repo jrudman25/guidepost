@@ -37,9 +37,8 @@ export async function parseResume(text: string): Promise<ParsedResumeData> {
         const parsed = JSON.parse(cleaned) as ParsedResumeData;
         return parsed;
     } catch {
-        throw new Error(
-            "Failed to parse Gemini response as JSON. Raw response: " +
-            response.substring(0, 200)
-        );
+        // Do not include model output in the error; it can contain resume PII
+        // and these errors are written to server logs.
+        throw new Error("Failed to parse Gemini response as JSON");
     }
 }
