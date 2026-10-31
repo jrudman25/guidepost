@@ -14,7 +14,7 @@
    ```
    supabase/setup.sql
    ```
-   This creates all tables, indexes, RLS policies, and the status-change trigger.
+   This creates all tables, indexes, RLS policies, the status-change trigger, and the demo-account auth triggers.
    (The `supabase/migrations/` directory is the incremental history; do not run it
    on a fresh install.)
 
@@ -56,6 +56,7 @@ Set these in your Vercel project dashboard under **Settings > Environment Variab
 | `SERPAPI_API_KEY` | SerpAPI key for Google Jobs searches |
 | `GEMINI_API_KEY` | Google AI Studio API key |
 | `CRON_SECRET` | Random string to secure cron endpoint (generate with `openssl rand -hex 32`) |
+| `LOGS_ADMIN_EMAIL` | Email of the single account allowed to read shared pipeline logs |
 
 ## 3. Deploy to Vercel
 
@@ -74,8 +75,9 @@ Vercel auto-detects Next.js -- no special build settings needed.
 
 - **Cron job**: `vercel.json` configures a daily search at 16:00 UTC (`0 16 * * *`). Vercel Cron is available on all plans.
 - **Auth**: Visit your deployed URL, enter your email, and click the magic link to sign in. Sign-ups are disabled by default; create users under **Supabase > Authentication > Users**.
+- **Pipeline logs**: Set `LOGS_ADMIN_EMAIL` to the email of the account that should be able to view the shared pipeline logs. If unset, log access is denied.
 - **Supabase auth redirect**: Add your Vercel URL to **Supabase > Authentication > URL Configuration > Redirect URLs** (e.g. `https://your-app.vercel.app/**`).
-- **(Optional) Demo account**: create a user `demo@guidepostai.app` and run `npx tsx scripts/seed-demo.ts` to populate sample data (requires `SUPABASE_SERVICE_ROLE_KEY` in `.env.local`; the script uses the service role because demo writes are denied at the database layer). Non-GET API requests from the demo account are blocked by the app proxy AND by restrictive RLS policies, so it is read-only even against direct PostgREST/Storage calls.
+- **(Optional) Demo account**: create a user `demo@guidepostai.app` and run `npx tsx scripts/seed-demo.ts` to populate sample data (requires `SUPABASE_SERVICE_ROLE_KEY` in `.env.local`; the script uses the service role because demo writes are denied at the database layer). Non-GET API requests from the demo account are blocked by the app proxy AND by restrictive RLS policies, so it is read-only even against direct PostgREST/Storage calls. Triggers on `auth.users` and `auth.mfa_factors` also block its password, email, phone, metadata, and MFA changes through the Auth API. This applies to dashboard edits too; to change the demo account on purpose, run the update in the SQL Editor inside a transaction after `set local guidepost.allow_demo_account_changes = 'on';`.
 
 ## Local Development
 

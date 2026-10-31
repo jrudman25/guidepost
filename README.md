@@ -15,7 +15,7 @@ A full-stack job search management tool that automatically finds job listings ma
 6. **Search, sort & filter** - debounced search bars and sort dropdowns (by score, date, title, company) on both the job inbox and applications pages, combined with tab/status filters and paginated results
 7. **Saved job reminders** - amber badge on the sidebar shows saved count, and saved job cards display color-coded aging indicators (green ≤3 days, amber 4–7 days, red >7 days)
 8. **Dashboard analytics** - response rate, average time to hear back, weekly volume, status breakdown, rejection funnel by pipeline stage, and a skills profile
-9. **Pipeline logs** - persistent daily logs of every search run (SerpAPI results, Gemini model used, scoring, errors) viewable in-app
+9. **Pipeline logs** - persistent daily logs of every search run (SerpAPI results, Gemini model used, scoring, errors) viewable in-app by the configured admin account
 10. **Automated backups** - daily database snapshots to Supabase Storage with 30-day retention
 11. **Demo mode** - read-only guest account with sample data for showcasing the app
 
@@ -26,7 +26,7 @@ A full-stack job search management tool that automatically finds job listings ma
 | Framework | Next.js 16 (App Router, Server Components) |
 | Language | TypeScript |
 | Database | Supabase (PostgreSQL + Auth + Storage + RLS) |
-| AI | Google Gemini (3 Flash → 2.5 Flash → 3.1 Flash Lite fallback chain) |
+| AI | Google Gemini (3.7 Flash → 3.6 Flash → 3.5 Flash Lite fallback chain) |
 | Job Data | SerpAPI (Google Jobs engine) |
 | Styling | Tailwind CSS 4 + Shadcn UI |
 | Charts | Recharts |
@@ -80,13 +80,14 @@ src/
 - **Row Level Security** - Supabase RLS policies enforce per-user data isolation at the database level; the demo account's data is completely separate
 - **Structured pipeline logging** - search runs produce categorized markdown logs (SerpAPI results, filtering summaries, score distributions, errors) persisted to Supabase Storage with 14-day retention
 - **SerpAPI compatibility** - Google Jobs listing-age filtering appends Google's date phrase (e.g. "in the last week") to each query, so every query costs a single SerpAPI call, then discards results whose parsed posting age exceeds the configured limit
-- **SerpAPI quota control** - daily search uses one Google Jobs page per query and an 8-call per-run budget, keeping the expected daily cron usage under the 250-call monthly SerpAPI quota
+- **SerpAPI quota control** - each run has an 8-call budget split round-robin across users and their resumes; leftover calls fetch a second page for the queries that found the most new listings, keeping daily cron usage under the 250-call monthly SerpAPI quota
 - **Database-level status tracking** - a PostgreSQL `BEFORE UPDATE` trigger logs every application status change to `status_history`, updates `status_updated_at`, and auto-advances `furthest_stage` (the highest pipeline stage reached, used for rejection funnel analytics)
-- **Batched deduplication** - URL-based dedup uses a single `IN` query per search instead of per-job queries, with a `Set` for O(1) cross-query tracking
-- **Graceful AI fallbacks** - a three-model fallback chain (Gemini 3 Flash → 2.5 Flash → 3.1 Flash Lite) ensures API calls succeed even during outages; if all models fail during scoring, jobs default to a score of 50
+- **Batched deduplication** - URL-based dedup uses a single `IN` query per search instead of per-job queries, with a `Set` for O(1) cross-query tracking; a title + company + location key also catches reposts with rotating apply URLs
+- **Graceful AI fallbacks** - a three-model fallback chain (Gemini 3.7 Flash → 3.6 Flash → 3.5 Flash Lite) keeps API calls working during outages and rate limits; scoring uses JSON mode, failed jobs are retried once, and jobs that still fail are skipped (not stored with a fake score) so they are rescored if they reappear
 - **Post-fetch location filtering** - non-remote jobs from distant locations are filtered after SerpAPI returns but before Gemini scoring, using keyword-based remote detection and state/city matching against the user's location filter
 - **Saved job aging** - saved cards show a color-coded "Saved X days ago" badge (green/amber/red) to discourage letting saved listings go stale
-- **Demo account isolation** - middleware blocks all non-GET requests for the demo user; pipeline logs and admin features are hidden from demo sessions
+- **Demo account isolation** - the guest account is read-only at three layers: the Next.js proxy blocks its non-GET API requests, restrictive RLS policies deny its writes to every table and storage object, and database triggers block changes to its password, email, profile, and MFA settings through the Supabase Auth API
+- **Admin-only pipeline logs** - logs cover every user's search runs, so they are readable only by the account set in `LOGS_ADMIN_EMAIL`
 
 ## Daily Cron Pipeline
 
@@ -109,6 +110,7 @@ The daily cron job (`/api/cron/daily-search`) runs the following steps in order:
 | `GEMINI_API_KEY` | Google Gemini API key |
 | `SERPAPI_API_KEY` | SerpAPI key for Google Jobs searches |
 | `CRON_SECRET` | Secret for authenticating Vercel Cron requests |
+| `LOGS_ADMIN_EMAIL` | Email of the single account allowed to read shared pipeline logs; access is denied if unset |
 
 ## Getting Started
 
@@ -128,7 +130,7 @@ npm test
 
 ### Supabase Setup
 
-1. **Database schema** - Run `supabase/setup.sql` in the Supabase SQL Editor. This creates all tables, indexes, RLS policies, and the status change trigger.
+1. **Database schema** - Run `supabase/setup.sql` in the Supabase SQL Editor. This creates all tables, indexes, RLS policies, the status change trigger, and the demo-account auth triggers.
 
 2. **Storage buckets** - Create three private buckets in Supabase Storage:
 
