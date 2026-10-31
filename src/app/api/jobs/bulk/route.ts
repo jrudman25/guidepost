@@ -41,7 +41,11 @@ export async function PATCH(request: Request) {
             .in("id", ids);
 
         if (error) {
-            return NextResponse.json({ error: error.message }, { status: 500 });
+            console.error("Bulk update jobs error:", error);
+            return NextResponse.json(
+                { error: "Failed to update jobs" },
+                { status: 500 }
+            );
         }
 
         // Mark any unseen jobs in this batch as seen

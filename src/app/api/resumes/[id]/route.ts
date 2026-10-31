@@ -37,7 +37,11 @@ export async function PATCH(
                 .single();
 
             if (fetchError) {
-                return NextResponse.json({ error: fetchError.message }, { status: 500 });
+                console.error("Fetch resume error:", fetchError);
+                return NextResponse.json(
+                    { error: "Failed to load the resume" },
+                    { status: 500 }
+                );
             }
             if (!existing?.parsed_data) {
                 return NextResponse.json(
@@ -67,7 +71,11 @@ export async function PATCH(
             .single();
 
         if (error) {
-            return NextResponse.json({ error: error.message }, { status: 500 });
+            console.error("Update resume error:", error);
+            return NextResponse.json(
+                { error: "Failed to update the resume" },
+                { status: 500 }
+            );
         }
 
         return NextResponse.json({ resume: data });
@@ -96,7 +104,11 @@ export async function DELETE(
             .single();
 
         if (fetchError) {
-            return NextResponse.json({ error: fetchError.message }, { status: 500 });
+            console.error("Fetch resume error:", fetchError);
+            return NextResponse.json(
+                { error: "Failed to load the resume" },
+                { status: 500 }
+            );
         }
 
         // Delete from storage
@@ -117,8 +129,9 @@ export async function DELETE(
             .eq("id", id);
 
         if (deleteError) {
+            console.error("Delete resume error:", deleteError);
             return NextResponse.json(
-                { error: deleteError.message },
+                { error: "Failed to delete the resume" },
                 { status: 500 }
             );
         }

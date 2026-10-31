@@ -17,7 +17,11 @@ export async function GET() {
             .gte("match_score", 50);
 
         if (error) {
-            return NextResponse.json({ error: error.message }, { status: 500 });
+            console.error("Unseen count query error:", error);
+            return NextResponse.json(
+                { error: "Failed to load job counts" },
+                { status: 500 }
+            );
         }
 
         const { count: totalNewCount } = await supabase
