@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
-import { DEMO_EMAIL } from "@/lib/demo-account";
+import { canViewPipelineLogs } from "@/lib/log-access";
 
 const STORAGE_BUCKET = "pipeline-logs";
 
@@ -23,16 +23,15 @@ export async function GET(
 
         const supabase = await createClient();
 
-        // Only allow non-demo users to view pipeline logs
         const { data: { user } } = await supabase.auth.getUser();
-        if (user?.email === DEMO_EMAIL) {
-            return NextResponse.json({ error: "Not available" }, { status: 403 });
+        if (!canViewPipelineLogs(user?.email)) {
+            return NextResponse.json({ error: "Forbidden" }, { status: 403 });
         }
 
         const filePath = `${date}.md`;
 
         // pipeline-logs is service-role-only at the storage layer; access is
-        // gated by the auth checks above.
+        // gated by the configured administrator check above.
         const service = createServiceClient();
         const { data, error } = await service.storage
             .from(STORAGE_BUCKET)

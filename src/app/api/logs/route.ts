@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
-import { DEMO_EMAIL } from "@/lib/demo-account";
+import { canViewPipelineLogs } from "@/lib/log-access";
 
 const STORAGE_BUCKET = "pipeline-logs";
 
@@ -13,21 +13,20 @@ export async function GET() {
     try {
         const supabase = await createClient();
 
-        // Only allow non-demo users to view pipeline logs
         const { data: { user } } = await supabase.auth.getUser();
-        if (user?.email === DEMO_EMAIL) {
-            return NextResponse.json({ error: "Not available" }, { status: 403 });
+        if (!canViewPipelineLogs(user?.email)) {
+            return NextResponse.json({ error: "Forbidden" }, { status: 403 });
         }
 
         // pipeline-logs is service-role-only at the storage layer; access is
-        // gated here instead (any signed-in non-demo user).
+        // gated here instead (the configured log administrator only).
         const service = createServiceClient();
         const { data: files, error } = await service.storage
             .from(STORAGE_BUCKET)
             .list("", { limit: 100, sortBy: { column: "name", order: "desc" } });
 
         if (error) {
-            return NextResponse.json({ error: error.message }, { status: 500 });
+            return NextResponse.json({ error: "Failed to read pipeline logs" }, { status: 500 });
         }
 
         const logs = (files || [])
