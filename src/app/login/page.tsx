@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { Compass, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,6 +11,7 @@ import { DEMO_EMAIL } from "@/lib/demo-account";
 import { toast } from "sonner";
 
 export default function LoginPage() {
+    const router = useRouter();
     const [email, setEmail] = useState("");
     const [loading, setLoading] = useState(false);
     const [guestLoading, setGuestLoading] = useState(false);
@@ -33,7 +35,8 @@ export default function LoginPage() {
         }
 
         // Redirect to dashboard (middleware will handle session refresh)
-        window.location.href = "/";
+        router.push("/");
+        router.refresh();
     }
 
     async function handleLogin(e: React.FormEvent) {

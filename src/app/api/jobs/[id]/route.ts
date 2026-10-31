@@ -51,7 +51,11 @@ export async function PATCH(
             .single();
 
         if (error) {
-            return NextResponse.json({ error: error.message }, { status: 500 });
+            console.error("Update job error:", error);
+            return NextResponse.json(
+                { error: "Failed to update the job" },
+                { status: 500 }
+            );
         }
 
         return NextResponse.json({ job: data });

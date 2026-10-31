@@ -62,7 +62,11 @@ export async function GET(request: Request) {
         const { data: jobs, count, error } = await query;
 
         if (error) {
-            return NextResponse.json({ error: error.message }, { status: 500 });
+            console.error("Fetch jobs query error:", error);
+            return NextResponse.json(
+                { error: "Failed to load jobs" },
+                { status: 500 }
+            );
         }
 
         return NextResponse.json({ jobs, total: count });

@@ -16,7 +16,11 @@ export async function GET() {
             .maybeSingle();
 
         if (error) {
-            return NextResponse.json({ error: error.message }, { status: 500 });
+            console.error("Fetch filters query error:", error);
+            return NextResponse.json(
+                { error: "Failed to load search filters" },
+                { status: 500 }
+            );
         }
 
         return NextResponse.json({ filters: data });
@@ -58,8 +62,9 @@ export async function PUT(request: Request) {
             .single();
 
         if (result.error) {
+            console.error("Update filters error:", result.error);
             return NextResponse.json(
-                { error: result.error.message },
+                { error: "Failed to save search filters" },
                 { status: 500 }
             );
         }

@@ -46,7 +46,11 @@ export async function GET(request: Request) {
         const { data, count, error } = await query;
 
         if (error) {
-            return NextResponse.json({ error: error.message }, { status: 500 });
+            console.error("Fetch applications query error:", error);
+            return NextResponse.json(
+                { error: "Failed to load applications" },
+                { status: 500 }
+            );
         }
 
         return NextResponse.json({ applications: data, total: count });
@@ -141,7 +145,11 @@ export async function POST(request: Request) {
             .single();
 
         if (error) {
-            return NextResponse.json({ error: error.message }, { status: 500 });
+            console.error("Create application insert error:", error);
+            return NextResponse.json(
+                { error: "Failed to create the application" },
+                { status: 500 }
+            );
         }
 
         // Log initial status in status_history

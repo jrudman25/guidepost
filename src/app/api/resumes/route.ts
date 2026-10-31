@@ -11,8 +11,9 @@ export async function GET() {
             .order("uploaded_at", { ascending: false });
 
         if (error) {
+            console.error("Fetch resumes query error:", error);
             return NextResponse.json(
-                { error: error.message },
+                { error: "Failed to load resumes" },
                 { status: 500 }
             );
         }

@@ -82,7 +82,11 @@ export async function PATCH(
             .single();
 
         if (error) {
-            return NextResponse.json({ error: error.message }, { status: 500 });
+            console.error("Update application error:", error);
+            return NextResponse.json(
+                { error: "Failed to update the application" },
+                { status: 500 }
+            );
         }
 
         return NextResponse.json({ application: data });
@@ -112,7 +116,11 @@ export async function DELETE(
             .eq("id", id);
 
         if (error) {
-            return NextResponse.json({ error: error.message }, { status: 500 });
+            console.error("Delete application error:", error);
+            return NextResponse.json(
+                { error: "Failed to delete the application" },
+                { status: 500 }
+            );
         }
 
         return NextResponse.json({ success: true });
