@@ -3,9 +3,9 @@ Guidepost is job search management tool built on NextJS, Typescript, SerpAPI, Su
 ## Commands
 
 - `npm run dev` / `npm run build` — Next.js 16 (Turbopack)
-- `npm test` — Vitest, 234 unit tests under `src/**/*.test.ts`
+- `npm test` — Vitest, 240 unit tests under `src/**/*.test.ts`
 - `npm run lint` — ESLint (eslint-config-next)
-- `npx tsc --noEmit` — typecheck
+- `npm run typecheck` — `tsc --noEmit`
 - `.github/workflows/ci.yml` runs lint, typecheck, test, and build in parallel on push to `main`/`testing` and PRs to `main`; `next build` uses placeholder `NEXT_PUBLIC_SUPABASE_*` env vars (no secrets needed)
 
 ## Conventions & constraints
